@@ -3,6 +3,8 @@ name: cPanel release package
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
