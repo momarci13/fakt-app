@@ -9,10 +9,7 @@ class Announcement extends Model
 {
     protected $fillable = ['semester_id', 'org_unit_id', 'author_id', 'title', 'body', 'audience', 'is_pinned', 'published_at', 'expires_at'];
 
-    protected function casts(): array
-    {
-        return ['is_pinned' => 'boolean', 'published_at' => 'datetime', 'expires_at' => 'datetime'];
-    }
+    protected $casts = ['is_pinned' => 'boolean', 'published_at' => 'datetime', 'expires_at' => 'datetime'];
 
     public function author(): BelongsTo
     {

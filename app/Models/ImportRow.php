@@ -11,10 +11,7 @@ class ImportRow extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return ['payload' => 'array', 'errors' => 'array'];
-    }
+    protected $casts = ['payload' => 'array', 'errors' => 'array'];
 
     public function batch(): BelongsTo
     {

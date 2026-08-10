@@ -35,14 +35,30 @@
 
         <link rel="icon" href="/fakt-icon.svg" type="image/svg+xml">
 
-        @fonts
+        @php
+            $manifestPath = public_path('build/manifest.json');
+            $viteManifest = file_exists($manifestPath)
+                ? json_decode(file_get_contents($manifestPath), true)
+                : [];
+        @endphp
 
-        @vite(['resources/css/app.css', 'resources/js/app.ts', "resources/js/pages/{$page['component']}.vue"])
-        <x-inertia::head>
-            <title>{{ config('app.name', 'Laravel') }}</title>
-        </x-inertia::head>
+        @foreach (['resources/css/app.css', 'resources/js/app.ts'] as $entryName)
+            @if (isset($viteManifest[$entryName]))
+                @foreach (($viteManifest[$entryName]['css'] ?? []) as $cssFile)
+                    <link rel="stylesheet" href="{{ asset('build/'.$cssFile) }}">
+                @endforeach
+
+                @if (substr($viteManifest[$entryName]['file'], -4) === '.css')
+                    <link rel="stylesheet" href="{{ asset('build/'.$viteManifest[$entryName]['file']) }}">
+                @else
+                    <script type="module" src="{{ asset('build/'.$viteManifest[$entryName]['file']) }}"></script>
+                @endif
+            @endif
+        @endforeach
+
+        @inertiaHead
     </head>
     <body class="font-sans antialiased">
-        <x-inertia::app />
+        @inertia
     </body>
 </html>

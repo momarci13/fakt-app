@@ -19,10 +19,7 @@ class Event extends Model
 {
     protected $fillable = ['semester_id', 'org_unit_id', 'project_id', 'course_offering_id', 'organizer_id', 'title', 'type', 'starts_at', 'ends_at', 'location', 'visibility', 'obligation', 'description', 'agenda', 'minutes', 'decision_summary', 'quorum_required', 'participant_count'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'datetime', 'ends_at' => 'datetime'];
-    }
+    protected $casts = ['starts_at' => 'datetime', 'ends_at' => 'datetime'];
 
     public function organizer(): BelongsTo
     {

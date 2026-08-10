@@ -44,7 +44,7 @@ class CalendarController extends Controller
             abort(403);
         }
 
-        $event = Event::query()->create([...$data, 'semester_id' => $semester->id, 'organizer_id' => $request->user()->id]);
+        $event = Event::query()->create(array_merge($data, ['semester_id' => $semester->id, 'organizer_id' => $request->user()->id]));
         Audit::record($event, 'created');
 
         return back()->with('success', 'Az esemény létrejött.');
@@ -61,7 +61,7 @@ class CalendarController extends Controller
 
     public function finalize(Request $request, Event $event): RedirectResponse
     {
-        abort_unless($event->organizer_id === $request->user()->id || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
+        abort_unless((int) $event->organizer_id === (int) $request->user()->id || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
         $data = $request->validate(['user_id' => ['required', 'exists:users,id'], 'final_status' => ['required', Rule::in(['present', 'absent', 'excused'])]]);
         $attendance = Attendance::query()->updateOrCreate(['event_id' => $event->id, 'user_id' => $data['user_id']], ['final_status' => $data['final_status'], 'finalized_by' => $request->user()->id, 'finalized_at' => now()]);
         Audit::record($attendance, 'attendance_finalized');
@@ -72,7 +72,7 @@ class CalendarController extends Controller
     public function updateMeeting(Request $request, Event $event): RedirectResponse
     {
         abort_unless($event->type === 'assembly', 422);
-        abort_unless($event->organizer_id === $request->user()->id || $request->user()->isPresident() || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
+        abort_unless((int) $event->organizer_id === (int) $request->user()->id || $request->user()->isPresident() || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
         $data = $request->validate([
             'agenda' => ['nullable', 'string', 'max:10000'],
             'minutes' => ['nullable', 'string', 'max:20000'],

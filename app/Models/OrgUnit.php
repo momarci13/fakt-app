@@ -10,10 +10,7 @@ class OrgUnit extends Model
 {
     protected $fillable = ['semester_id', 'parent_id', 'type', 'name', 'slug', 'color', 'is_active'];
 
-    protected function casts(): array
-    {
-        return ['is_active' => 'boolean'];
-    }
+    protected $casts = ['is_active' => 'boolean'];
 
     public function semester(): BelongsTo
     {

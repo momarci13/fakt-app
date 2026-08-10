@@ -10,10 +10,7 @@ class Project extends Model
 {
     protected $fillable = ['semester_id', 'org_unit_id', 'lead_user_id', 'created_by', 'name', 'description', 'status', 'starts_at', 'ends_at'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'date', 'ends_at' => 'date'];
-    }
+    protected $casts = ['starts_at' => 'date', 'ends_at' => 'date'];
 
     public function lead(): BelongsTo
     {

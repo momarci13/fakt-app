@@ -9,10 +9,7 @@ class TeamMembership extends Model
 {
     protected $fillable = ['semester_id', 'org_unit_id', 'user_id', 'assigned_by', 'starts_at', 'ends_at'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'date', 'ends_at' => 'date'];
-    }
+    protected $casts = ['starts_at' => 'date', 'ends_at' => 'date'];
 
     public function orgUnit(): BelongsTo
     {

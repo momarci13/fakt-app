@@ -17,7 +17,7 @@ class DocumentController extends Controller
 {
     public function index(Request $request): Response
     {
-        $isAlumni = $request->user()->profile?->member_status === 'alumni';
+        $isAlumni = (($nullsafeVariable1 = $request->user()->profile) ? $nullsafeVariable1->member_status : null) === 'alumni';
         $documents = Document::query()
             ->with('uploader:id,name')
             ->where(fn ($query) => $query
@@ -72,9 +72,9 @@ class DocumentController extends Controller
 
     public function download(Request $request, Document $document): StreamedResponse
     {
-        $isAlumni = $request->user()->profile?->member_status === 'alumni';
+        $isAlumni = (($nullsafeVariable2 = $request->user()->profile) ? $nullsafeVariable2->member_status : null) === 'alumni';
         $allowed = $request->user()->isPresident()
-            || $document->uploaded_by === $request->user()->id
+            || (int) $document->uploaded_by === (int) $request->user()->id
             || in_array($document->visibility, $isAlumni ? ['all', 'alumni'] : ['all', 'members'], true);
         abort_unless($allowed, 403);
         abort_unless(Storage::disk('local')->exists($document->path), 404);

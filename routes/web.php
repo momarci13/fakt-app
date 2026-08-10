@@ -12,8 +12,12 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
+use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
 Route::redirect('/', '/login')->name('home');
+Route::post('login', [AuthenticatedSessionController::class, 'store'])
+    ->middleware(['guest', 'throttle:login'])
+    ->name('login.store');
 Route::get('calendar/feed/{token}.ics', CalendarFeedController::class)->middleware('throttle:30,1')->name('calendar.feed');
 Route::get('kurzuskinalat', [CourseController::class, 'publicIndex'])->name('courses.public');
 

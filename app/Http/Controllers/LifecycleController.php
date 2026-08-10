@@ -23,9 +23,9 @@ class LifecycleController extends Controller
 
         return Inertia::render('Lifecycle/Index', [
             'progress' => LifecycleProgress::for($request->user(), $semester),
-            'records' => ProgressRecord::query()->where('user_id', $request->user()->id)->where('semester_id', $semester?->id)->latest()->get(),
-            'requests' => MemberRequest::query()->where('user_id', $request->user()->id)->where('semester_id', $semester?->id)->latest()->get(),
-            'memberStatus' => $request->user()->profile?->member_status,
+            'records' => ProgressRecord::query()->where('user_id', $request->user()->id)->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)->latest()->get(),
+            'requests' => MemberRequest::query()->where('user_id', $request->user()->id)->where('semester_id', ($nullsafeVariable2 = $semester) ? $nullsafeVariable2->id : null)->latest()->get(),
+            'memberStatus' => ($nullsafeVariable3 = $request->user()->profile) ? $nullsafeVariable3->member_status : null,
         ]);
     }
 
@@ -37,7 +37,7 @@ class LifecycleController extends Controller
             'reason' => ['required', 'string', 'max:5000'],
             'evidence' => ['nullable', 'file', 'max:10240', 'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg'],
         ]);
-        $path = $request->file('evidence')?->store('evidence/'.$request->user()->id, 'local');
+        $path = ($nullsafeVariable4 = $request->file('evidence')) ? $nullsafeVariable4->store('evidence/'.$request->user()->id, 'local') : null;
         $memberRequest = MemberRequest::query()->create(['user_id' => $request->user()->id, 'semester_id' => $semester->id, 'type' => $data['type'], 'reason' => $data['reason'], 'evidence_path' => $path, 'status' => 'pending']);
         Audit::record($memberRequest, 'submitted');
 
@@ -49,7 +49,7 @@ class LifecycleController extends Controller
         abort_unless($request->user()->isPresident() || AccessScope::managesCourses($request->user()), 403);
         $semester = Semester::activeOrFail();
         $data = $request->validate(['user_id' => ['required', 'exists:users,id'], 'type' => ['required', 'string', 'max:80'], 'value' => ['required', 'numeric', 'between:-10,100'], 'note' => ['nullable', 'string', 'max:2000']]);
-        $record = ProgressRecord::query()->create([...$data, 'semester_id' => $semester->id, 'status' => 'approved', 'approved_by' => $request->user()->id, 'approved_at' => now()]);
+        $record = ProgressRecord::query()->create(array_merge($data, ['semester_id' => $semester->id, 'status' => 'approved', 'approved_by' => $request->user()->id, 'approved_at' => now()]));
         Audit::record($record, 'progress_approved');
 
         return back()->with('success', 'Az előrehaladási rekord rögzítve.');
@@ -57,7 +57,7 @@ class LifecycleController extends Controller
 
     public function downloadEvidence(Request $request, MemberRequest $memberRequest)
     {
-        abort_unless($memberRequest->user_id === $request->user()->id || $request->user()->isPresident(), 403);
+        abort_unless((int) $memberRequest->user_id === (int) $request->user()->id || $request->user()->isPresident(), 403);
         abort_unless($memberRequest->evidence_path && Storage::disk('local')->exists($memberRequest->evidence_path), 404);
 
         return Storage::disk('local')->download($memberRequest->evidence_path);

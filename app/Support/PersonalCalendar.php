@@ -21,7 +21,7 @@ class PersonalCalendar
         $managedIds = $user->managedOrgUnitIds();
         $projectIds = $user->projects()->where('projects.semester_id', $semester->id)->pluck('projects.id');
         $courseIds = $user->enrollments()->where('status', 'approved')->pluck('course_offering_id');
-        $isAlumni = $user->profile?->member_status === 'alumni';
+        $isAlumni = (($nullsafeVariable1 = $user->profile) ? $nullsafeVariable1->member_status : null) === 'alumni';
 
         return Event::query()
             ->with([

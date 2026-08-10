@@ -10,15 +10,12 @@ class ImportBatch extends Model
 {
     protected $guarded = [];
 
-    protected function casts(): array
-    {
-        return [
+    protected $casts = [
             'mapping' => 'array',
             'reconciliation' => 'array',
             'applied_at' => 'datetime',
             'rolled_back_at' => 'datetime',
         ];
-    }
 
     public function uploader(): BelongsTo
     {

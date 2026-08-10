@@ -11,10 +11,7 @@ class AuditEntry extends Model
 
     protected $fillable = ['actor_id', 'auditable_type', 'auditable_id', 'event', 'before', 'after', 'ip_address', 'created_at'];
 
-    protected function casts(): array
-    {
-        return ['before' => 'array', 'after' => 'array', 'created_at' => 'datetime'];
-    }
+    protected $casts = ['before' => 'array', 'after' => 'array', 'created_at' => 'datetime'];
 
     public function actor(): BelongsTo
     {

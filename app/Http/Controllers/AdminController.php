@@ -33,7 +33,7 @@ class AdminController extends Controller
         return Inertia::render('Admin/Index', [
             'semester' => $semester,
             'semesters' => Semester::query()->latest('starts_at')->get(),
-            'rules' => ObligationRule::query()->where('semester_id', $semester?->id)->orderBy('code')->orderByDesc('version')->get(),
+            'rules' => ObligationRule::query()->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)->orderBy('code')->orderByDesc('version')->get(),
             'audits' => AuditEntry::query()->with('actor:id,name')->latest('created_at')->take(25)->get(),
             'pendingRequests' => MemberRequest::query()->where('status', 'pending')->with('user:id,name,email')->latest()->get(),
             'importBatches' => ImportBatch::query()->with(['rows' => fn ($query) => $query->orderBy('row_number')->limit(8)])->latest()->take(10)->get(),
@@ -135,7 +135,7 @@ class AdminController extends Controller
     public function applyMemberImport(Request $request, ImportBatch $importBatch): RedirectResponse
     {
         $this->authorizePresident($request);
-        abort_unless($importBatch->status === 'staged' && $importBatch->invalid_rows === 0, 422, 'Csak hibamentes, még nem alkalmazott import indítható.');
+        abort_unless($importBatch->status === 'staged' && (int) $importBatch->invalid_rows === 0, 422, 'Csak hibamentes, még nem alkalmazott import indítható.');
 
         DB::transaction(function () use ($request, $importBatch): void {
             foreach ($importBatch->rows()->where('status', 'valid')->get() as $row) {
@@ -186,7 +186,7 @@ class AdminController extends Controller
         abort_if($handle === false, 422, 'A fájl nem olvasható.');
         $rows = [];
         while (($row = fgetcsv($handle, 0, ',')) !== false) {
-            if (count($row) === 1 && str_contains((string) $row[0], ';')) {
+            if (count($row) === 1 && strpos((string) $row[0], ';') !== false) {
                 $row = str_getcsv((string) $row[0], ';');
             }
             $rows[] = $row;
@@ -240,13 +240,25 @@ class AdminController extends Controller
 
     private function normaliseHeader(string $header): string
     {
-        return match (strtolower(trim($header))) {
-            'név', 'nev', 'teljes_név', 'teljes_nev' => 'name',
-            'e-mail', 'email_cím', 'email_cim' => 'email',
-            'státusz', 'statusz' => 'member_status',
-            'évfolyam', 'evfolyam' => 'cohort_year',
-            default => strtolower(trim($header)),
-        };
+        switch (strtolower(trim($header))) {
+            case 'név':
+            case 'nev':
+            case 'teljes_név':
+            case 'teljes_nev':
+                return 'name';
+            case 'e-mail':
+            case 'email_cím':
+            case 'email_cim':
+                return 'email';
+            case 'státusz':
+            case 'statusz':
+                return 'member_status';
+            case 'évfolyam':
+            case 'evfolyam':
+                return 'cohort_year';
+            default:
+                return strtolower(trim($header));
+        }
     }
 
     public function storeSemester(Request $request): RedirectResponse
@@ -256,7 +268,7 @@ class AdminController extends Controller
         if ($data['activate'] ?? false) {
             Semester::query()->update(['is_active' => false]);
         }
-        $semester = Semester::query()->create([...collect($data)->except('activate')->all(), 'is_active' => $data['activate'] ?? false]);
+        $semester = Semester::query()->create(array_merge(collect($data)->except('activate')->all(), ['is_active' => $data['activate'] ?? false]));
         Audit::record($semester, 'created');
 
         return back()->with('success', 'A félév létrejött.');
@@ -269,7 +281,7 @@ class AdminController extends Controller
         $data = $request->validate(['code' => ['required', 'alpha_dash', 'max:80'], 'name' => ['required', 'string', 'max:150'], 'description' => ['nullable', 'string', 'max:2000'], 'kind' => ['required', Rule::in(['minimum', 'maximum'])], 'threshold' => ['required', 'numeric', 'between:0,100']]);
         $version = (int) ObligationRule::query()->where('semester_id', $semester->id)->where('code', $data['code'])->max('version') + 1;
         $effectiveAt = now()->isAfter($semester->starts_at) ? now() : $semester->starts_at->startOfDay();
-        $rule = ObligationRule::query()->create([...$data, 'semester_id' => $semester->id, 'version' => $version, 'effective_at' => $effectiveAt, 'is_active' => true]);
+        $rule = ObligationRule::query()->create(array_merge($data, ['semester_id' => $semester->id, 'version' => $version, 'effective_at' => $effectiveAt, 'is_active' => true]));
         Audit::record($rule, 'rule_version_created');
 
         return back()->with('success', 'Az új szabályverzió piszkozatként létrejött.');
@@ -290,7 +302,7 @@ class AdminController extends Controller
     {
         $this->authorizePresident($request);
         $data = $request->validate(['title' => ['required', 'string', 'max:160'], 'body' => ['required', 'string', 'max:5000'], 'audience' => ['required', Rule::in(['members', 'alumni', 'all'])], 'is_pinned' => ['boolean']]);
-        $announcement = Announcement::query()->create([...$data, 'semester_id' => Semester::active()?->id, 'author_id' => $request->user()->id, 'published_at' => now()]);
+        $announcement = Announcement::query()->create(array_merge($data, ['semester_id' => ($nullsafeVariable2 = Semester::active()) ? $nullsafeVariable2->id : null, 'author_id' => $request->user()->id, 'published_at' => now()]));
         Audit::record($announcement, 'published');
 
         return back()->with('success', 'A közlemény megjelent.');
@@ -301,17 +313,25 @@ class AdminController extends Controller
         $this->authorizePresident($request);
         $data = $request->validate(['status' => ['required', Rule::in(['approved', 'rejected'])], 'decision_note' => ['required', 'string', 'max:2000']]);
         $before = $memberRequest->toArray();
-        $memberRequest->update([...$data, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
+        $memberRequest->update(array_merge($data, ['reviewed_by' => $request->user()->id, 'reviewed_at' => now()]));
         $memberRequest->user->notify(new FaktNotification('Tagi kérelmedet elbírálták', $data['decision_note'], '/eletut'));
 
         if ($data['status'] === 'approved') {
             $profile = User::query()->findOrFail($memberRequest->user_id)->profile;
-            match ($memberRequest->type) {
-                'passivation' => $profile?->update(['member_status' => 'passive']),
-                'senior' => $profile?->update(['member_status' => 'senior']),
-                'diploma' => $profile?->update(['member_status' => 'alumni', 'diploma_awarded_at' => now()->toDateString(), 'alumni_visible' => false]),
-                default => null,
-            };
+            switch ($memberRequest->type) {
+                case 'passivation':
+                    ($nullsafeVariable3 = $profile) ? $nullsafeVariable3->update(['member_status' => 'passive']) : null;
+                    break;
+                case 'senior':
+                    ($nullsafeVariable4 = $profile) ? $nullsafeVariable4->update(['member_status' => 'senior']) : null;
+                    break;
+                case 'diploma':
+                    ($nullsafeVariable5 = $profile) ? $nullsafeVariable5->update(['member_status' => 'alumni', 'diploma_awarded_at' => now()->toDateString(), 'alumni_visible' => false]) : null;
+                    break;
+                default:
+                    null;
+                    break;
+            }
         }
         Audit::record($memberRequest, 'reviewed', $before);
 

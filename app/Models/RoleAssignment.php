@@ -9,10 +9,7 @@ class RoleAssignment extends Model
 {
     protected $fillable = ['semester_id', 'org_unit_id', 'user_id', 'appointed_by', 'role', 'starts_at', 'ends_at', 'revoked_at', 'note'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'date', 'ends_at' => 'date', 'revoked_at' => 'datetime'];
-    }
+    protected $casts = ['starts_at' => 'date', 'ends_at' => 'date', 'revoked_at' => 'datetime'];
 
     public function semester(): BelongsTo
     {

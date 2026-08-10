@@ -17,11 +17,19 @@ class GenerateRecurringTasks extends Command
         $created = 0;
         Task::query()->where('status', 'done')->whereNotNull('due_at')->whereNotNull('recurrence_rule')->where('due_at', '<=', now())->with('assignees:id')->chunkById(100, function ($tasks) use (&$created): void {
             foreach ($tasks as $task) {
-                $nextDue = match (strtoupper((string) $task->recurrence_rule)) {
-                    'DAILY', 'FREQ=DAILY' => $task->due_at->copy()->addDay(),
-                    'MONTHLY', 'FREQ=MONTHLY' => $task->due_at->copy()->addMonthNoOverflow(),
-                    default => $task->due_at->copy()->addWeek(),
-                };
+                switch (strtoupper((string) $task->recurrence_rule)) {
+                    case 'DAILY':
+                    case 'FREQ=DAILY':
+                        $nextDue = $task->due_at->copy()->addDay();
+                        break;
+                    case 'MONTHLY':
+                    case 'FREQ=MONTHLY':
+                        $nextDue = $task->due_at->copy()->addMonthNoOverflow();
+                        break;
+                    default:
+                        $nextDue = $task->due_at->copy()->addWeek();
+                        break;
+                }
                 if (Task::query()->where('parent_id', $task->id)->where('due_at', $nextDue)->exists()) {
                     continue;
                 }

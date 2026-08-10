@@ -14,10 +14,7 @@ class Semester extends Model
 {
     protected $fillable = ['name', 'starts_at', 'ends_at', 'is_active', 'course_selection_open', 'rules_published_at'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'date', 'ends_at' => 'date', 'is_active' => 'boolean', 'course_selection_open' => 'boolean', 'rules_published_at' => 'datetime'];
-    }
+    protected $casts = ['starts_at' => 'date', 'ends_at' => 'date', 'is_active' => 'boolean', 'course_selection_open' => 'boolean', 'rules_published_at' => 'datetime'];
 
     public function orgUnits(): HasMany
     {

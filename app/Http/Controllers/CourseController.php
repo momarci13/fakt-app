@@ -24,7 +24,7 @@ class CourseController extends Controller
         return Inertia::render('Courses/Public', [
             'semester' => $semester,
             'courses' => CourseOffering::query()
-                ->where('semester_id', $semester?->id)
+                ->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)
                 ->where('status', 'published')
                 ->select(['id', 'title', 'category', 'description', 'instructor_name', 'capacity', 'starts_at', 'ends_at', 'location'])
                 ->orderBy('starts_at')
@@ -35,7 +35,7 @@ class CourseController extends Controller
     public function index(Request $request): Response
     {
         $semester = Semester::active();
-        $courses = CourseOffering::query()->where('semester_id', $semester?->id)
+        $courses = CourseOffering::query()->where('semester_id', ($nullsafeVariable2 = $semester) ? $nullsafeVariable2->id : null)
             ->withCount(['enrollments as approved_count' => fn ($q) => $q->where('status', 'approved')])
             ->with(['enrollments' => fn ($q) => $q->where('user_id', $request->user()->id)])
             ->orderBy('starts_at')->get();
@@ -46,23 +46,26 @@ class CourseController extends Controller
             'semester' => $semester,
             'courses' => $courses,
             'canManage' => $canManage,
-            'pendingEnrollments' => $canManage ? EnrollmentRequest::query()->whereHas('course', fn ($q) => $q->where('semester_id', $semester?->id))->whereIn('status', ['pending', 'waitlisted'])->with(['user:id,name', 'course:id,title,capacity'])->orderBy('preference_rank')->get() : [],
+            'pendingEnrollments' => $canManage ? EnrollmentRequest::query()->whereHas('course', fn ($q) => $q->where('semester_id', ($nullsafeVariable3 = $semester) ? $nullsafeVariable3->id : null))->whereIn('status', ['pending', 'waitlisted'])->with(['user:id,name', 'course:id,title,capacity'])->orderBy('preference_rank')->get() : [],
         ]);
     }
 
     public function request(Request $request, CourseOffering $course): RedirectResponse
     {
         $semester = Semester::activeOrFail();
-        abort_unless($course->semester_id === $semester->id && $semester->course_selection_open, 403);
+        abort_unless((int) $course->semester_id === (int) $semester->id && $semester->course_selection_open, 403);
         $data = $request->validate(['preference_rank' => ['required', 'integer', 'between:1,9']]);
         $hasConflict = EnrollmentRequest::query()
             ->where('user_id', $request->user()->id)
             ->where('course_offering_id', '!=', $course->id)
             ->whereNotIn('status', ['rejected'])
-            ->whereHas('course', fn ($query) => $query
-                ->where('starts_at', '<', $course->ends_at)
-                ->where('ends_at', '>', $course->starts_at))
-            ->exists();
+            ->with('course')
+            ->get()
+            ->contains(function (EnrollmentRequest $enrollment) use ($course) {
+                return $enrollment->course
+                    && $enrollment->course->starts_at->lt($course->ends_at)
+                    && $enrollment->course->ends_at->gt($course->starts_at);
+            });
         if ($hasConflict) {
             return back()->withErrors(['preference_rank' => 'A kurzus időpontja ütközik egy másik kiválasztott kurzusoddal.']);
         }
@@ -85,7 +88,7 @@ class CourseController extends Controller
             'instructor_name' => ['required', 'string', 'max:160'], 'instructor_email' => ['nullable', 'email', 'max:255'], 'capacity' => ['required', 'integer', 'between:1,100'],
             'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at'], 'location' => ['nullable', 'string', 'max:160'], 'recurrence_rule' => ['nullable', 'string', 'max:255'],
         ]);
-        $course = CourseOffering::query()->create([...$data, 'semester_id' => $semester->id, 'created_by' => $request->user()->id, 'status' => 'published']);
+        $course = CourseOffering::query()->create(array_merge($data, ['semester_id' => $semester->id, 'created_by' => $request->user()->id, 'status' => 'published']));
         Event::query()->create(['semester_id' => $semester->id, 'course_offering_id' => $course->id, 'organizer_id' => $request->user()->id, 'title' => $course->title, 'type' => 'course', 'starts_at' => $course->starts_at, 'ends_at' => $course->ends_at, 'location' => $course->location, 'visibility' => 'scope', 'obligation' => 'required', 'description' => $course->description]);
         Audit::record($course, 'created');
 
@@ -102,7 +105,7 @@ class CourseController extends Controller
         }
 
         $before = $enrollment->toArray();
-        $enrollment->update([...$data, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
+        $enrollment->update(array_merge($data, ['reviewed_by' => $request->user()->id, 'reviewed_at' => now()]));
         $enrollment->user->notify(new FaktNotification('Kurzusjelentkezés elbírálva', $course->title.': '.$data['status'], '/kurzusok'));
         Audit::record($enrollment, 'reviewed', $before);
 

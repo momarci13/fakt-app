@@ -9,10 +9,7 @@ class MemberRequest extends Model
 {
     protected $fillable = ['user_id', 'semester_id', 'type', 'reason', 'evidence_path', 'status', 'reviewed_by', 'reviewed_at', 'decision_note'];
 
-    protected function casts(): array
-    {
-        return ['reviewed_at' => 'datetime'];
-    }
+    protected $casts = ['reviewed_at' => 'datetime'];
 
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo

@@ -9,10 +9,7 @@ class Mentorship extends Model
 {
     protected $fillable = ['mentor_id', 'mentee_id', 'status', 'focus', 'starts_at', 'ends_at'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'date', 'ends_at' => 'date'];
-    }
+    protected $casts = ['starts_at' => 'date', 'ends_at' => 'date'];
 
     public function mentor(): BelongsTo
     {

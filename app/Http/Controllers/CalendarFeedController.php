@@ -15,11 +15,11 @@ class CalendarFeedController extends Controller
         $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FAKT//Belső alkalmazás//HU', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:FAKT – '.$this->escape($user->name)];
 
         foreach (PersonalCalendar::events($user) as $event) {
-            $lines = [...$lines, 'BEGIN:VEVENT', 'UID:event-'.$event->id.'@app.fakt.org.hu', 'DTSTAMP:'.now()->utc()->format('Ymd\THis\Z'), 'DTSTART:'.$event->starts_at->utc()->format('Ymd\THis\Z'), 'DTEND:'.$event->ends_at->utc()->format('Ymd\THis\Z'), 'SUMMARY:'.$this->escape($event->title), 'LOCATION:'.$this->escape($event->location ?? ''), 'DESCRIPTION:'.$this->escape($event->description ?? ''), 'END:VEVENT'];
+            $lines = array_merge($lines, ['BEGIN:VEVENT', 'UID:event-'.$event->id.'@app.fakt.org.hu', 'DTSTAMP:'.now()->utc()->format('Ymd\THis\Z'), 'DTSTART:'.$event->starts_at->utc()->format('Ymd\THis\Z'), 'DTEND:'.$event->ends_at->utc()->format('Ymd\THis\Z'), 'SUMMARY:'.$this->escape($event->title), 'LOCATION:'.$this->escape($event->location ?? ''), 'DESCRIPTION:'.$this->escape($event->description ?? ''), 'END:VEVENT']);
         }
 
         foreach (Task::query()->visibleTo($user)->whereHas('assignees', fn ($q) => $q->where('users.id', $user->id))->whereNotNull('due_at')->whereNotIn('status', ['done', 'cancelled'])->get() as $task) {
-            $lines = [...$lines, 'BEGIN:VEVENT', 'UID:task-'.$task->id.'@app.fakt.org.hu', 'DTSTAMP:'.now()->utc()->format('Ymd\THis\Z'), 'DTSTART;VALUE=DATE:'.$task->due_at->format('Ymd'), 'SUMMARY:'.$this->escape('Határidő: '.$task->title), 'END:VEVENT'];
+            $lines = array_merge($lines, ['BEGIN:VEVENT', 'UID:task-'.$task->id.'@app.fakt.org.hu', 'DTSTAMP:'.now()->utc()->format('Ymd\THis\Z'), 'DTSTART;VALUE=DATE:'.$task->due_at->format('Ymd'), 'SUMMARY:'.$this->escape('Határidő: '.$task->title), 'END:VEVENT']);
         }
 
         $lines[] = 'END:VCALENDAR';

@@ -9,9 +9,17 @@ use Illuminate\Notifications\Notification;
 
 class FaktNotification extends Notification implements ShouldQueue
 {
+    public string $title;
+    public string $message;
+    public string $url = '/dashboard';
     use Queueable;
 
-    public function __construct(public string $title, public string $message, public string $url = '/dashboard') {}
+    public function __construct(string $title, string $message, string $url = '/dashboard')
+    {
+        $this->title = $title;
+        $this->message = $message;
+        $this->url = $url;
+    }
 
     public function via(object $notifiable): array
     {

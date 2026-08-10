@@ -24,4 +24,11 @@ class DashboardTest extends TestCase
         $response = $this->get(route('dashboard'));
         $response->assertOk();
     }
+
+    public function test_tasks_page_is_available_before_the_first_semester_is_created(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get(route('tasks.index'))->assertOk();
+    }
 }

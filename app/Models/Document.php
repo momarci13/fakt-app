@@ -10,10 +10,7 @@ class Document extends Model
 {
     protected $fillable = ['uploaded_by', 'category', 'original_name', 'path', 'mime_type', 'size', 'visibility', 'expires_at'];
 
-    protected function casts(): array
-    {
-        return ['expires_at' => 'datetime'];
-    }
+    protected $casts = ['expires_at' => 'datetime'];
 
     public function uploader(): BelongsTo
     {

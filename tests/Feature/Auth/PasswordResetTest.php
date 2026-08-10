@@ -13,6 +13,15 @@ class PasswordResetTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_email_fields_reject_crlf_characters(): void
+    {
+        $response = $this->post(route('password.email'), [
+            'email' => "attacker@example.test\r\nBcc:victim@example.test",
+        ]);
+
+        $response->assertSessionHasErrors('email');
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

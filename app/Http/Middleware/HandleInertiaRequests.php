@@ -35,23 +35,29 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        return [
-            ...parent::share($request),
-            'name' => config('app.name'),
-            'auth' => [
-                'user' => $request->user()?->loadMissing('profile'),
-                'roles' => fn () => $request->user()?->activeRoleNames() ?? [],
-                'abilities' => fn () => [
-                    'isPresident' => $request->user()?->isPresident() ?? false,
-                    'isLeader' => $request->user()?->isLeader() ?? false,
-                ],
-                'notifications' => fn () => $request->user()?->unreadNotifications()->latest()->take(5)->get()->map(fn ($notification) => ['id' => $notification->id, ...$notification->data, 'created_at' => $notification->created_at]) ?? [],
+        return array_merge(parent::share($request), ['name' => config('app.name'), 'auth' => [
+            'user' => ($nullsafeVariable1 = $request->user()) ? $nullsafeVariable1->loadMissing('profile') : null,
+            'roles' => fn () => (($nullsafeVariable2 = $request->user()) ? $nullsafeVariable2->activeRoleNames() : null) ?? [],
+            'abilities' => fn () => [
+                'isPresident' => (($nullsafeVariable3 = $request->user()) ? $nullsafeVariable3->isPresident() : null) ?? false,
+                'isLeader' => (($nullsafeVariable4 = $request->user()) ? $nullsafeVariable4->isLeader() : null) ?? false,
             ],
-            'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
-            ],
-            'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
-        ];
+            'notifications' => function () use ($request) {
+                if (! $request->user()) {
+                    return [];
+                }
+
+                return $request->user()->unreadNotifications()->latest()->take(5)->get()->map(function ($notification) {
+                    return array_merge(
+                        ['id' => $notification->id],
+                        (array) $notification->data,
+                        ['created_at' => $notification->created_at]
+                    );
+                });
+            },
+        ], 'flash' => [
+            'success' => fn () => $request->session()->get('success'),
+            'error' => fn () => $request->session()->get('error'),
+        ], 'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true']);
     }
 }

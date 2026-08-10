@@ -21,14 +21,14 @@ class OrganizationController extends Controller
     public function index(Request $request): Response
     {
         $semester = Semester::active();
-        $units = OrgUnit::query()->where('semester_id', $semester?->id)
+        $units = OrgUnit::query()->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)
             ->with(['roles' => fn ($q) => $q->whereNull('revoked_at')->with('user:id,name,email'), 'memberships.user:id,name,email', 'children'])
             ->orderBy('type')->orderBy('name')->get();
 
         return Inertia::render('Organization/Index', [
             'semester' => $semester,
             'units' => $units,
-            'projects' => Project::query()->where('semester_id', $semester?->id)->with(['lead:id,name', 'members:id,name', 'orgUnit:id,name'])->get(),
+            'projects' => Project::query()->where('semester_id', ($nullsafeVariable2 = $semester) ? $nullsafeVariable2->id : null)->with(['lead:id,name', 'members:id,name', 'orgUnit:id,name'])->get(),
             'members' => User::query()->with('profile')->orderBy('name')->get(['id', 'name', 'email']),
             'canAdmin' => $request->user()->isPresident(),
             'managedUnitIds' => $request->user()->managedOrgUnitIds(),
@@ -53,13 +53,7 @@ class OrganizationController extends Controller
             abort(403);
         }
 
-        $role = RoleAssignment::query()->create([
-            ...$data,
-            'semester_id' => $semester->id,
-            'appointed_by' => $actor->id,
-            'starts_at' => now()->isAfter($semester->starts_at) ? now()->toDateString() : $semester->starts_at->toDateString(),
-            'ends_at' => $semester->ends_at,
-        ]);
+        $role = RoleAssignment::query()->create(array_merge($data, ['semester_id' => $semester->id, 'appointed_by' => $actor->id, 'starts_at' => now()->isAfter($semester->starts_at) ? now()->toDateString() : $semester->starts_at->toDateString(), 'ends_at' => $semester->ends_at]));
         Audit::record($role, 'appointed');
 
         return back()->with('success', 'A kinevezés rögzítve.');
@@ -111,10 +105,7 @@ class OrganizationController extends Controller
             abort(403);
         }
 
-        $project = Project::query()->create([
-            ...collect($data)->except('member_ids')->all(), 'semester_id' => $semester->id, 'created_by' => $request->user()->id,
-            'starts_at' => now()->toDateString(), 'status' => 'active',
-        ]);
+        $project = Project::query()->create(array_merge(collect($data)->except('member_ids')->all(), ['semester_id' => $semester->id, 'created_by' => $request->user()->id, 'starts_at' => now()->toDateString(), 'status' => 'active']));
         $project->members()->sync(collect($data['member_ids'] ?? [])->push($data['lead_user_id'])->unique());
         RoleAssignment::query()->create(['semester_id' => $semester->id, 'user_id' => $data['lead_user_id'], 'appointed_by' => $request->user()->id, 'role' => 'project_leader', 'starts_at' => now(), 'ends_at' => $data['ends_at'] ?? $semester->ends_at]);
         Audit::record($project, 'created');

@@ -19,10 +19,7 @@ class CourseOffering extends Model
 {
     protected $fillable = ['semester_id', 'created_by', 'title', 'category', 'description', 'instructor_name', 'instructor_email', 'capacity', 'status', 'starts_at', 'ends_at', 'location', 'recurrence_rule'];
 
-    protected function casts(): array
-    {
-        return ['starts_at' => 'datetime', 'ends_at' => 'datetime'];
-    }
+    protected $casts = ['starts_at' => 'datetime', 'ends_at' => 'datetime'];
 
     public function semester(): BelongsTo
     {

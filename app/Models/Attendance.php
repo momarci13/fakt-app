@@ -9,10 +9,7 @@ class Attendance extends Model
 {
     protected $fillable = ['event_id', 'user_id', 'rsvp_status', 'final_status', 'excuse_reason', 'finalized_by', 'finalized_at'];
 
-    protected function casts(): array
-    {
-        return ['finalized_at' => 'datetime'];
-    }
+    protected $casts = ['finalized_at' => 'datetime'];
 
     public function event(): BelongsTo
     {

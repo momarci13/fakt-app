@@ -8,8 +8,5 @@ class ProgressRecord extends Model
 {
     protected $fillable = ['user_id', 'semester_id', 'type', 'source_type', 'source_id', 'value', 'status', 'note', 'approved_by', 'approved_at'];
 
-    protected function casts(): array
-    {
-        return ['approved_at' => 'datetime', 'value' => 'float'];
-    }
+    protected $casts = ['approved_at' => 'datetime', 'value' => 'float'];
 }

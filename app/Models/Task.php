@@ -18,10 +18,7 @@ class Task extends Model
 {
     protected $fillable = ['parent_id', 'semester_id', 'org_unit_id', 'project_id', 'created_by', 'title', 'description', 'status', 'priority', 'due_at', 'recurrence_rule', 'visibility'];
 
-    protected function casts(): array
-    {
-        return ['due_at' => 'datetime'];
-    }
+    protected $casts = ['due_at' => 'datetime'];
 
     public function creator(): BelongsTo
     {
@@ -60,7 +57,7 @@ class Task extends Model
             return $query;
         }
         $unitIds = $user->managedOrgUnitIds();
-        $memberUnitIds = $user->teamMemberships()->where('semester_id', Semester::active()?->id)->pluck('org_unit_id');
+        $memberUnitIds = $user->teamMemberships()->where('semester_id', ($nullsafeVariable1 = Semester::active()) ? $nullsafeVariable1->id : null)->pluck('org_unit_id');
         $visibleUnitIds = $unitIds->merge($memberUnitIds)->unique();
         $projectIds = $user->projects()->pluck('projects.id');
 

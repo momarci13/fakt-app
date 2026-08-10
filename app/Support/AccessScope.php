@@ -24,7 +24,7 @@ class AccessScope
 
         $project = Project::query()->find($projectId);
 
-        return $project && ($project->lead_user_id === $user->id || self::managesUnit($user, $project->org_unit_id));
+        return $project && ((int) $project->lead_user_id === (int) $user->id || self::managesUnit($user, $project->org_unit_id));
     }
 
     public static function managesCourses(User $user): bool
