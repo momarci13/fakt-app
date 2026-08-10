@@ -33,9 +33,9 @@ jobs:
 
       - name: Setup Application
         run: |
-          composer install --no-interaction --prefer-dist --no-progress --no-blocking
           cp .env.example .env
           touch database/database.sqlite
+          composer install --no-interaction --prefer-dist --no-progress --no-blocking
           php artisan key:generate
           php artisan migrate --force
           npm ci

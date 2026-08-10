@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP 7.4
         uses: shivammathur/setup-php@v2
@@ -25,12 +25,15 @@ jobs:
           coverage: none
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
 
       - name: Install production dependencies
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
         run: composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress --no-blocking
 
       - name: Report known dependency advisories
@@ -61,7 +64,7 @@ jobs:
           zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public
 
       - name: Upload cPanel package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fakt-cpanel-release
           path: release/fakt-cpanel-release.zip
