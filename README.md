@@ -116,7 +116,7 @@ A jelenlegi tárhelyen nincs Terminal/SSH, ezért ne töltsd fel egyszerűen a G
 4. Hozd létre az `app.fakt.org.hu` aldomaint, MySQL adatbázist, AutoSSL-t és az állandó percenkénti cront.
 5. Az egyszeri kulcsgenerálást, migrációt és első elnöki fiókot ideiglenes cron feladatok futtatják.
 
-A teljes, kattintásról kattintásra leírás: [deploy/RACKHOST.md](deploy/RACKHOST.md).
+A következő frissítéshez használd a [rövid Rackhost telepítési segédletet](deploy/RACKHOST-QUICK-DEPLOY.md). A teljes, első telepítéshez készült leírás: [deploy/RACKHOST.md](deploy/RACKHOST.md).
 
 ## Biztonság és adatmegőrzés
 

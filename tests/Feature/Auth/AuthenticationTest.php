@@ -16,7 +16,11 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get(route('login'));
 
-        $response->assertOk();
+        $response
+            ->assertOk()
+            ->assertSee('<script data-page="app" type="application/json">', false)
+            ->assertSee('<div id="app"></div>', false)
+            ->assertDontSee('<div id="app" data-page=', false);
     }
 
     public function test_users_can_authenticate_using_the_login_screen()
