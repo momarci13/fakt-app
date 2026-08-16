@@ -1,6 +1,6 @@
 <?php
 
-use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
@@ -16,10 +16,5 @@ require $corePath.'/vendor/autoload.php';
 
 $app = require_once $corePath.'/bootstrap/app.php';
 
-$kernel = $app->make(Kernel::class);
-
-$response = tap($kernel->handle(
-    $request = Request::capture()
-))->send();
-
-$kernel->terminate($request, $response);
+/** @var Application $app */
+$app->handleRequest(Request::capture());

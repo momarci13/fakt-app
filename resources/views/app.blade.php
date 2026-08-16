@@ -59,13 +59,6 @@
         @inertiaHead
     </head>
     <body class="font-sans antialiased">
-        {{--
-            The PHP 7.4 compatible Inertia Laravel adapter renders the initial
-            page as a data-page attribute. Inertia.js 3 reads it from a JSON
-            script instead, so keep this small compatibility bridge until the
-            Rackhost account can move to a supported PHP/Laravel release.
-        --}}
-        <script data-page="app" type="application/json">{!! json_encode($page, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>
-        <div id="app"></div>
+        @inertia
     </body>
 </html>

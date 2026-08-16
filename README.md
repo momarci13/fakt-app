@@ -4,17 +4,15 @@ Magyar nyelvű, mobilra optimalizált Laravel + Vue/Inertia PWA a FAKT szervezet
 
 ## Technikai állapot
 
-Ez az ág a jelenlegi Rackhost cPanel környezethez készült:
+Ez az ág a Rackhost PHP 8.3-as cPanel környezetéhez készült:
 
-- PHP 7.4-kompatibilis Laravel 8.83;
-- Vue 3, Inertia és Vite frontend;
+- PHP 8.3 és támogatott Laravel 13;
+- Vue 3, Inertia 3 és Vite frontend;
 - MySQL production adatbázis, SQLite helyi fejlesztéshez;
 - adatbázis-alapú queue és cPanel cron;
 - SSH, szerveroldali Composer és szerveroldali Node.js nélküli telepítés GitHub Actions artifactból.
 
-> Fontos: a PHP 7.4 és a Laravel 8 már nem kap biztonsági javításokat. A kompatibilitási ág a jelenlegi tárhely technikai korlátját kezeli, de személyes adatokat kezelő éles rendszerhez támogatott PHP 8.3+ tárhelyre váltás javasolt.
-
-A jelenlegi Composer advisoryk és az alkalmazásszintű kockázatcsökkentések részletei: [docs/PHP74_SECURITY.md](docs/PHP74_SECURITY.md).
+A futtatókörnyezet és a kiadásbiztonság részletei: [docs/RUNTIME_SECURITY.md](docs/RUNTIME_SECURITY.md).
 
 ## Fő modulok
 
@@ -34,7 +32,7 @@ A jelenlegi Composer advisoryk és az alkalmazásszintű kockázatcsökkentések
 ### Előfeltételek
 
 - Git;
-- PHP 7.4 vagy újabb a szükséges bővítményekkel (`curl`, `fileinfo`, `mbstring`, `openssl`, `pdo_sqlite` vagy `pdo_mysql`, `xml`, `zip`);
+- PHP 8.3 vagy újabb a szükséges bővítményekkel (`curl`, `fileinfo`, `mbstring`, `openssl`, `pdo_sqlite` vagy `pdo_mysql`, `xml`, `zip`);
 - Composer 2;
 - Node.js 22 LTS és npm.
 
@@ -58,7 +56,7 @@ git clone <REPOSITORY-URL> fakt-app
 Set-Location fakt-app
 Copy-Item .env.example .env
 New-Item database/database.sqlite -ItemType File -Force
-composer install --no-blocking
+composer install
 php artisan key:generate
 php artisan migrate:fresh --seed
 npm.cmd ci
@@ -75,7 +73,7 @@ git clone <REPOSITORY-URL> fakt-app
 cd fakt-app
 cp .env.example .env
 touch database/database.sqlite
-composer install --no-blocking
+composer install
 php artisan key:generate
 php artisan migrate:fresh --seed
 npm ci
@@ -89,7 +87,7 @@ Az alkalmazás a [http://127.0.0.1:8000](http://127.0.0.1:8000) címen indul. A 
 
 ```bash
 git pull
-composer install --no-blocking
+composer install
 php artisan migrate
 npm ci
 npm run build
@@ -116,7 +114,7 @@ A jelenlegi tárhelyen nincs Terminal/SSH, ezért ne töltsd fel egyszerűen a G
 4. Hozd létre az `app.fakt.org.hu` aldomaint, MySQL adatbázist, AutoSSL-t és az állandó percenkénti cront.
 5. Az egyszeri kulcsgenerálást, migrációt és első elnöki fiókot ideiglenes cron feladatok futtatják.
 
-A következő frissítéshez használd a [rövid Rackhost telepítési segédletet](deploy/RACKHOST-QUICK-DEPLOY.md). A teljes, első telepítéshez készült leírás: [deploy/RACKHOST.md](deploy/RACKHOST.md).
+A már működő PHP 7.4/Laravel 8 példány biztonságos PHP 8.3/Laravel 13 frissítéséhez kövesd a [rövid frissítési segédletet](deploy/RACKHOST-QUICK-DEPLOY.md). A teljes első telepítéshez és hibaelhárításhoz használd a [részletes Rackhost útmutatót](deploy/RACKHOST.md).
 
 ## Biztonság és adatmegőrzés
 

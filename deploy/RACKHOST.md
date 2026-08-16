@@ -1,104 +1,159 @@
-# Rackhost cPanel telepítés PHP 7.4-re, SSH nélkül
+# Rackhost cPanel telepítés PHP 8.3-ra, SSH nélkül
 
-Ez a leírás a jelenlegi `nxt02408` cPanel-fiókhoz készült. A megoldás nem módosítja a `fakt.org.hu` nyilvános oldalát: az alkalmazás külön, az `app.fakt.org.hu` címen fut.
+Ez az útmutató a `nxt02408` cPanel-fiókhoz és az `app.fakt.org.hu` aldomainhez készült. A nyilvános `fakt.org.hu` oldal változatlan marad. A telepíthető csomag PHP 8.3-at és Laravel 13-at igényel.
 
-> Biztonsági figyelmeztetés: a PHP 7.4 és a Laravel 8 már nem támogatott. Ez a csomag technikailag fut a jelenlegi tárhelyen, de éles, személyes adatokat kezelő rendszerhez támogatott PHP 8.3+ tárhelyre váltás javasolt. A migrációig rendszeresen futtasd a GitHub Actions teszteket és figyeld a biztonsági értesítéseket.
+## 0. Mielőtt elkezded
 
-## 1. Telepíthető ZIP elkészítése
+Ellenőrizd a cPanelben:
 
-1. GitHubon nyisd meg a repót, majd **Actions → cPanel release package → Run workflow**.
-2. A sikeres futás alján töltsd le a `fakt-cpanel-release` artifactot.
-3. Csomagold ki a letöltött artifactot, majd a benne lévő `fakt-cpanel-release.zip` fájlt is. Két mappát kapsz:
-   - `fakt-app-core`: Laravel, `vendor/` és a lefordított frontend;
-   - `fakt-app-public`: kizárólag a weben elérhető fájlok.
+1. **MultiPHP Manager** alatt az `app.fakt.org.hu` domainhez választható a PHP 8.3.
+2. **Cron Jobs**, **MySQL Databases**, **SSL/TLS Status** és **File Manager** elérhető.
+3. A PHP-bővítmények között megtalálható legalább: `ctype`, `curl`, `dom`, `fileinfo`, `filter`, `hash`, `mbstring`, `openssl`, `pdo_mysql`, `session`, `simplexml`, `tokenizer`, `xml`, `zip`.
+4. Van friss adatbázis- és fájlmentésed.
 
-Ehhez a lépéshez a Rackhost szerveren nem kell Composer, Node.js vagy Terminal.
+Az alkalmazást ne a GitHub forráskód ZIP-jéből telepítsd. Az nem tartalmazza a `vendor/` mappát és a lefordított frontend fájlokat.
 
-## 2. Aldomain és dokumentumgyökér
+## 1. Telepíthető ZIP letöltése
+
+1. GitHub → **Actions** → **cPanel release package**.
+2. Nyisd meg a legújabb zöld, sikeres futást. Ha nincs ilyen, válaszd a **Run workflow** lehetőséget, és várd meg a sikert.
+3. Az oldal alján töltsd le a `fakt-cpanel-release` artifactot.
+4. A számítógépeden csomagold ki az artifactot. Benne lesz egy második fájl: `fakt-cpanel-release.zip`.
+5. Ezt a második ZIP-et töltsd fel a cPanelbe. Kibontva két mappát ad:
+   - `fakt-app-core`: Laravel, `vendor/`, konfiguráció és a lefordított assetek;
+   - `fakt-app-public`: kizárólag a weben közvetlenül elérhető fájlok.
+
+A Rackhost szerveren nem kell Composer, npm, Node.js vagy Terminal.
+
+## 2. Első telepítés: domain és PHP 8.3
+
+Ha az aldomain már létezik, csak ellenőrizd ezeket az értékeket.
 
 1. cPanel → **Domains → Create A New Domain**.
 2. Domain: `app.fakt.org.hu`.
-3. Kapcsold ki a közös dokumentumgyökeret, és add meg: `/public_html/fakt-app`.
-4. Ha a DNS-zóna nem frissül automatikusan, a Rackhost **DNS zónák → Rekordok szerkesztése** alatt adj `app` A rekordot a tárhely megosztott IP-címére (`91.227.138.57`).
-5. cPanel → **MultiPHP Manager**: csak az `app.fakt.org.hu` sort jelöld ki, válaszd a PHP 7.4-et, majd **Apply**.
-6. cPanel → **SSL/TLS Status**: az aldomain legyen AutoSSL-be bevonva, majd **Run AutoSSL**. Ezután Domains alatt kapcsold be a **Force HTTPS Redirect** opciót.
+3. Document root: `/public_html/fakt-app`.
+4. Rackhost DNS-zóna: az `app` A rekord mutasson a tárhely IP-címére.
+5. cPanel → **MultiPHP Manager** → jelöld ki kizárólag az `app.fakt.org.hu` sort → válaszd a **PHP 8.3** verziót → **Apply**.
+6. **SSL/TLS Status** → az aldomain legyen AutoSSL-ben → **Run AutoSSL**.
+7. Ha a tanúsítvány már zöld, a **Domains** oldalon kapcsold be a **Force HTTPS Redirect** opciót.
 
-## 3. MySQL adatbázis
+## 3. Első telepítés: MySQL
 
 1. cPanel → **MySQL Database Wizard**.
-2. Hozz létre külön adatbázist és külön felhasználót; adj neki erős, egyedi jelszót.
-3. Rendeld a felhasználót az adatbázishoz **All Privileges** jogosultsággal.
-4. Jegyezd fel a cPanel által előtagolt teljes neveket, például `nxt02408_faktapp`.
+2. Hozz létre külön adatbázist, például `faktapp` néven.
+3. Hozz létre külön adatbázis-felhasználót erős, egyedi jelszóval.
+4. Rendeld a felhasználót az adatbázishoz **All Privileges** jogosultsággal.
+5. Jegyezd fel a teljes, cPanel-előtagos neveket, például:
+   - adatbázis: `nxt02408_faktapp`;
+   - felhasználó: `nxt02408_faktapp`;
+   - jelszó: a létrehozáskor mentett adatbázisjelszó.
 
-## 4. Fájlok feltöltése
+## 4. Első telepítés: fájlok
 
-1. cPanel → **File Manager**.
-2. A `/cphome/nxt02408` mappába töltsd fel és csomagold ki a `fakt-app-core` mappát. A végeredmény: `/cphome/nxt02408/fakt-app-core/artisan`.
-3. A `/cphome/nxt02408/public_html/fakt-app` mappába a `fakt-app-public` mappa **tartalmát** töltsd fel. A végeredmény: `/cphome/nxt02408/public_html/fakt-app/index.php`.
-4. A `fakt-app-core/storage` és `fakt-app-core/bootstrap/cache` mappák jogosultsága legyen írható a tárhely PHP-folyamata számára; cPanelen jellemzően `0755`, szükség esetén `0775`. Ne használj `0777`-et.
-
-A Laravel-mag, a `.env`, a feltöltések és a naplók így a `public_html` mappán kívül maradnak.
+1. A `/cphome/nxt02408` mappában bontsd ki a kiadási ZIP-et.
+2. A core végleges helye legyen `/cphome/nxt02408/fakt-app-core`. Ellenőrzés: itt közvetlenül látszódjon az `artisan` fájl.
+3. A `fakt-app-public` mappa **tartalmát** másold a `/cphome/nxt02408/public_html/fakt-app` mappába. Az `index.php` és a rejtett `.htaccess` is közvetlenül ebben a mappában legyen.
+4. A következő mappák jogosultsága legyen `0755`; ha a Rackhost írási hibát jelez, `0775`:
+   - `/cphome/nxt02408/fakt-app-core/storage`;
+   - `/cphome/nxt02408/fakt-app-core/bootstrap/cache`.
+5. Soha ne használj `0777` jogosultságot.
 
 ## 5. Production `.env`
 
-1. A core mappában másold át a `.env.cpanel.example` fájlt `.env` névre.
+1. A core mappában másold le a `.env.cpanel.example` fájlt `.env` néven.
 2. Töltsd ki a valódi adatbázis- és SMTP-adatokat.
-3. Maradjon `APP_DEBUG=false`, `APP_ENV=production` és `APP_URL=https://app.fakt.org.hu`.
-4. Ne töltsd fel a `.env` fájlt GitHubra, és ne tedd a publikus mappába.
-
-Rackhostos postafiók használatakor az SMTP host/port/titkosítás pontos értékeit a cPanel **Connect Devices** oldala mutatja. A sablonban szereplő `mail.fakt.org.hu:587` csak kiinduló érték.
-
-## 6. Egyszeri Artisan parancsok Terminal nélkül
-
-A cPanel **Cron Jobs** oldalán ideiglenesen adj hozzá egy-egy, percenként futó feladatot. Minden parancsnál várd meg a napló létrejöttét, ellenőrizd, majd azonnal töröld az adott cron sort.
-
-PHP 7.4 parancsútvonal:
+3. Ezek maradjanak pontosan így:
 
 ```text
-/usr/local/bin/ea-php74
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://app.fakt.org.hu
+DB_HOST=127.0.0.1
+SESSION_SECURE_COOKIE=true
 ```
 
-1. Alkalmazáskulcs:
+4. SMTP 587/STARTTLS esetén használd a `MAIL_SCHEME=smtp` értéket. SMTP 465/implicit TLS esetén `MAIL_SCHEME=smtps` és `MAIL_PORT=465` kell. A cPanel **Connect Devices** oldalán látható érték az irányadó.
+5. A `.env` soha ne kerüljön GitHubra vagy `public_html` alá.
+
+## 6. Egyszeri parancsok Cron Jobs segítségével
+
+A PHP 8.3 parancsútvonala:
 
 ```text
-/usr/local/bin/ea-php74 /cphome/nxt02408/fakt-app-core/artisan key:generate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
+/usr/local/bin/ea-php83
 ```
 
-2. Adatbázis-migráció:
+Minden alábbi parancsnál:
+
+1. cPanel → **Cron Jobs**.
+2. **Once Per Minute**.
+3. Illeszd be az egyetlen aktuális parancsot.
+4. Várj 1–2 percet.
+5. File Managerben ellenőrizd a `/cphome/nxt02408/fakt-deploy.log` végét.
+6. Az ideiglenes cron sort azonnal töröld, és csak ezután add hozzá a következőt.
+
+Futtatókörnyezet ellenőrzése:
 
 ```text
-/usr/local/bin/ea-php74 /cphome/nxt02408/fakt-app-core/artisan migrate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/deploy/rackhost-preflight.php >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
 
-3. Első elnöki fiók; az emailt és nevet cseréld ki:
+Alkalmazáskulcs létrehozása — csak első telepítéskor:
 
 ```text
-/usr/local/bin/ea-php74 /cphome/nxt02408/fakt-app-core/artisan fakt:bootstrap-president elnok@fakt.org.hu --name="Elnök neve" >> /cphome/nxt02408/fakt-deploy.log 2>&1
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan key:generate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
 
-4. Production cache:
+Adatbázistáblák létrehozása/frissítése:
 
 ```text
-/usr/local/bin/ea-php74 /cphome/nxt02408/fakt-app-core/artisan optimize >> /cphome/nxt02408/fakt-deploy.log 2>&1
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan migrate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
 
-A `fakt-deploy.log` tartalmazza az egyszer használatos elnöki jelszót. Belépés és jelszócsere után töröld ezt a naplófájlt a File Managerben. Productionben soha ne futtasd a `migrate:fresh` vagy `db:seed` parancsot.
+Első elnöki fiók — csak üres, első telepítésnél:
 
-## 7. Állandó cron
+```text
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan fakt:bootstrap-president elnok@fakt.org.hu --name="Elnök neve" >> /cphome/nxt02408/fakt-deploy.log 2>&1
+```
+
+Production cache:
+
+```text
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan optimize:clear >> /cphome/nxt02408/fakt-deploy.log 2>&1 && /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan optimize >> /cphome/nxt02408/fakt-deploy.log 2>&1
+```
+
+Productionben soha ne futtasd a `migrate:fresh` vagy `db:seed` parancsot. A `key:generate` parancsot frissítéskor sem szabad újra futtatni, mert azzal a korábbi titkosított adatok és munkamenetek olvashatatlanná válnának.
+
+## 7. Állandó scheduler cron
 
 Hozz létre egyetlen, percenként futó cron feladatot:
 
 ```text
-/usr/local/bin/ea-php74 /cphome/nxt02408/fakt-app-core/artisan schedule:run >> /dev/null 2>&1
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan schedule:run >> /dev/null 2>&1
 ```
 
-Ez futtatja a rövid, adatbázis-alapú queue feldolgozást, emlékeztetőket, ismétlődő feladatokat és adatmegőrzési takarítást. Nem kell folyamatos queue worker.
+Régi `ea-php74` scheduler sor ne maradjon aktív.
 
-## 8. Ellenőrzés és frissítés
+## 8. Első ellenőrzés
 
-- Nyisd meg a `https://app.fakt.org.hu` címet, jelentkezz be, és azonnal cseréld le a kezdeti jelszót.
-- Teszteld a jelszó-reset és meghívó emailt, TOTP-t, védett fájlletöltést és az ICS-token visszavonását.
-- Készíts napi mentést az adatbázisról és a `fakt-app-core/storage/app/private` mappáról; a `.env` és az `APP_KEY` külön, titkosított mentésben is legyen meg.
-- Frissítéskor készíts új Actions artifactot, ments adatbázist/fájlokat, cseréld a két mappa alkalmazásfájljait, majd futtasd ideiglenes cronból a `migrate --force` és `optimize` parancsokat. A `.env` és a `storage/app/private` tartalma maradjon meg.
+1. Nyisd meg inkognitó ablakban: `https://app.fakt.org.hu/login`.
+2. Jelentkezz be az elnöki fiókkal, és azonnal módosítsd a kezdeti jelszót.
+3. A böngésző konzoljában ne legyen JavaScript hiba; a jelszófrissítés ne adjon 405 hibát.
+4. Teszteld a jelszó-reset emailt, egy védett fájlletöltést, az ICS feedet és a TOTP bekapcsolási képernyőjét.
+5. Töröld a `fakt-deploy.log` fájlt, mert az első ideiglenes jelszót tartalmazhatja.
+6. Készíts új adatbázis- és fájlmentést a működő állapotról.
 
-Go-live előtt kötelező a teljes visszaállítási próba és a jogosultsági teszt. A `deploy/rackhost-preflight.php` futtatható ideiglenes cronból is, ha a kimenetet naplóba irányítod.
+## 9. Biztonságos frissítés meglévő telepítésről
+
+A PHP 7.4/Laravel 8 → PHP 8.3/Laravel 13 átálláshoz a rövid, sorrendhelyes eljárás a [RACKHOST-QUICK-DEPLOY.md](RACKHOST-QUICK-DEPLOY.md) fájlban található. Ne másold rá vakon az új fájlokat a működő core mappára: staging mappát és visszaállítható mappacserét használj.
+
+## 10. Mentés és visszaállítás
+
+Minden kiadás előtt mentsd:
+
+- a teljes MySQL adatbázist;
+- `/cphome/nxt02408/fakt-app-core/.env`;
+- `/cphome/nxt02408/fakt-app-core/storage/app/private`;
+- az aktuális core és public mappákat.
+
+Sikertelen frissítésnél állítsd vissza az adatbázismentést, a régi core/public mappákat és a hozzájuk tartozó PHP-verziót. A visszaállítást legalább havonta próbáld ki ellenőrzött környezetben.
