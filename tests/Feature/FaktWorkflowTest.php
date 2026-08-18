@@ -52,9 +52,87 @@ class FaktWorkflowTest extends TestCase
         RoleAssignment::query()->create(['semester_id' => $this->semester->id, 'org_unit_id' => $this->portfolio->id, 'user_id' => $this->vicePresident->id, 'appointed_by' => $this->president->id, 'role' => 'vice_president', 'starts_at' => now()->subMonth(), 'ends_at' => $this->semester->ends_at]);
     }
 
-    public function test_public_registration_is_disabled(): void
+    public function test_public_registration_is_available_for_approval_based_access(): void
     {
-        $this->get('/register')->assertNotFound();
+        $this->get('/register')->assertOk();
+    }
+
+    public function test_task_delegation_follows_the_leadership_chain(): void
+    {
+        $teamLeader = $this->member('Teamvezető');
+        $projectLeader = $this->member('Projektvezető');
+        $projectMember = $this->member('Projekttag');
+        RoleAssignment::query()->create([
+            'semester_id' => $this->semester->id,
+            'org_unit_id' => $this->team->id,
+            'user_id' => $teamLeader->id,
+            'appointed_by' => $this->vicePresident->id,
+            'role' => 'team_leader',
+            'starts_at' => now()->subDay(),
+            'ends_at' => $this->semester->ends_at,
+        ]);
+        TeamMembership::query()->create([
+            'semester_id' => $this->semester->id,
+            'org_unit_id' => $this->team->id,
+            'user_id' => $this->member->id,
+            'assigned_by' => $teamLeader->id,
+            'starts_at' => now()->subDay(),
+            'ends_at' => $this->semester->ends_at,
+        ]);
+        $project = \App\Models\Project::query()->create([
+            'semester_id' => $this->semester->id,
+            'lead_user_id' => $projectLeader->id,
+            'created_by' => $this->president->id,
+            'name' => 'Delegálási tesztprojekt',
+            'status' => 'active',
+            'starts_at' => now()->subDay(),
+            'ends_at' => $this->semester->ends_at,
+        ]);
+        $project->members()->sync([$projectLeader->id, $projectMember->id]);
+        RoleAssignment::query()->create([
+            'semester_id' => $this->semester->id,
+            'user_id' => $projectLeader->id,
+            'appointed_by' => $this->president->id,
+            'role' => 'project_leader',
+            'starts_at' => now()->subDay(),
+            'ends_at' => $this->semester->ends_at,
+        ]);
+
+        $payload = fn (User $assignee, string $title) => [
+            'title' => $title,
+            'priority' => 'normal',
+            'assignee_ids' => [$assignee->id],
+        ];
+
+        $this->actingAs($this->president)
+            ->post(route('tasks.store'), $payload($this->vicePresident, 'Elnök az alelnöknek'))
+            ->assertRedirect();
+        $this->actingAs($this->president)
+            ->post(route('tasks.store'), $payload($projectLeader, 'Elnök a projektvezetőnek'))
+            ->assertRedirect();
+        $this->actingAs($this->president)
+            ->post(route('tasks.store'), $payload($this->member, 'Tiltott közvetlen kiosztás'))
+            ->assertForbidden();
+
+        $this->actingAs($this->vicePresident)
+            ->post(route('tasks.store'), $payload($teamLeader, 'Alelnök a Teamvezetőnek'))
+            ->assertRedirect();
+        $this->actingAs($this->vicePresident)
+            ->post(route('tasks.store'), $payload($this->member, 'Tiltott alelnöki kiosztás'))
+            ->assertForbidden();
+
+        $this->actingAs($teamLeader)
+            ->post(route('tasks.store'), $payload($this->member, 'Teamvezető a Teamtagnak'))
+            ->assertRedirect();
+        $this->actingAs($teamLeader)
+            ->post(route('tasks.store'), $payload($this->vicePresident, 'Tiltott felfelé delegálás'))
+            ->assertForbidden();
+
+        $this->actingAs($projectLeader)
+            ->post(route('tasks.store'), $payload($projectMember, 'Projektvezető a projekttagnak'))
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('tasks', 5);
     }
 
     public function test_only_president_can_appoint_a_vice_president(): void

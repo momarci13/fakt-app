@@ -21,7 +21,7 @@ Route::post('login', [AuthenticatedSessionController::class, 'store'])
 Route::get('calendar/feed/{token}.ics', CalendarFeedController::class)->middleware('throttle:30,1')->name('calendar.feed');
 Route::get('kurzuskinalat', [CourseController::class, 'publicIndex'])->name('courses.public');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'approved', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::post('ertesitesek/{notification}/olvasott', [NotificationController::class, 'read'])->name('notifications.read');
 
@@ -70,6 +70,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('admin/szabalyok/publikalas', [AdminController::class, 'publishRules'])->name('admin.rules.publish');
     Route::post('admin/kozlemenyek', [AdminController::class, 'announce'])->name('admin.announcements.store');
     Route::patch('admin/kerelmek/{memberRequest}', [AdminController::class, 'reviewMemberRequest'])->name('admin.requests.review');
+    Route::patch('admin/regisztraciok/{user}', [AdminController::class, 'reviewRegistration'])->name('admin.registrations.review');
 });
 
 require __DIR__.'/settings.php';

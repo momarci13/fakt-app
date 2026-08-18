@@ -36,8 +36,18 @@ class AdminController extends Controller
             'rules' => ObligationRule::query()->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)->orderBy('code')->orderByDesc('version')->get(),
             'audits' => AuditEntry::query()->with('actor:id,name')->latest('created_at')->take(25)->get(),
             'pendingRequests' => MemberRequest::query()->where('status', 'pending')->with('user:id,name,email')->latest()->get(),
+            'pendingRegistrations' => User::query()
+                ->where('approval_status', 'pending')
+                ->with('profile:user_id,cohort_year,member_status')
+                ->oldest()
+                ->get(['id', 'name', 'email', 'registration_note', 'created_at']),
             'importBatches' => ImportBatch::query()->with(['rows' => fn ($query) => $query->orderBy('row_number')->limit(8)])->latest()->take(10)->get(),
-            'stats' => ['users' => User::query()->count(), 'active' => MemberProfile::query()->whereIn('member_status', ['active', 'senior'])->count(), 'alumni' => MemberProfile::query()->where('member_status', 'alumni')->count()],
+            'stats' => [
+                'users' => User::query()->where('approval_status', 'approved')->count(),
+                'active' => MemberProfile::query()->whereIn('member_status', ['active', 'senior'])->count(),
+                'alumni' => MemberProfile::query()->where('member_status', 'alumni')->count(),
+                'pending' => User::query()->where('approval_status', 'pending')->count(),
+            ],
         ]);
     }
 
@@ -45,7 +55,17 @@ class AdminController extends Controller
     {
         $this->authorizePresident($request);
         $data = $request->validate(['name' => ['required', 'string', 'max:150'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'member_status' => ['required', Rule::in(['active', 'senior', 'alumni'])], 'cohort_year' => ['nullable', 'integer', 'between:2008,2100']]);
-        $user = User::query()->create(['name' => $data['name'], 'email' => $data['email'], 'password' => Hash::make(Str::random(64)), 'invited_by' => $request->user()->id, 'invited_at' => now(), 'calendar_token' => Str::random(48)]);
+        $user = User::query()->create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make(Str::random(64)),
+            'invited_by' => $request->user()->id,
+            'invited_at' => now(),
+            'calendar_token' => Str::random(48),
+            'approval_status' => 'approved',
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]);
         $user->profile()->create(['member_status' => $data['member_status'], 'cohort_year' => $data['cohort_year'] ?? null, 'alumni_visible' => false]);
         Password::sendResetLink(['email' => $user->email]);
         Audit::record($user, 'invited');
@@ -147,6 +167,9 @@ class AdminController extends Controller
                     'invited_by' => $request->user()->id,
                     'invited_at' => now(),
                     'calendar_token' => Str::random(48),
+                    'approval_status' => 'approved',
+                    'approved_by' => $request->user()->id,
+                    'approved_at' => now(),
                 ]);
                 $user->profile()->create([
                     'member_status' => $payload['member_status'],
@@ -336,6 +359,52 @@ class AdminController extends Controller
         Audit::record($memberRequest, 'reviewed', $before);
 
         return back()->with('success', 'A tagi kérelem elbírálva.');
+    }
+
+    public function reviewRegistration(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizePresident($request);
+        abort_unless($user->approval_status === 'pending', 422, 'Ez a regisztráció már el lett bírálva.');
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in(['approved', 'rejected'])],
+            'decision_note' => [Rule::requiredIf($request->input('status') === 'rejected'), 'nullable', 'string', 'max:2000'],
+        ]);
+        $before = $user->toArray();
+
+        DB::transaction(function () use ($request, $user, $data): void {
+            if ($data['status'] === 'approved') {
+                $user->update([
+                    'approval_status' => 'approved',
+                    'approved_by' => $request->user()->id,
+                    'approved_at' => now(),
+                    'rejected_at' => null,
+                    'rejection_reason' => null,
+                ]);
+                $user->profile()->update(['member_status' => 'active']);
+            } else {
+                $user->update([
+                    'approval_status' => 'rejected',
+                    'rejected_at' => now(),
+                    'rejection_reason' => $data['decision_note'],
+                ]);
+                $user->profile()->update(['member_status' => 'rejected']);
+            }
+        });
+
+        $approved = $data['status'] === 'approved';
+        $user->notify(new FaktNotification(
+            $approved ? 'Regisztrációd jóváhagyva' : 'Regisztrációs döntés',
+            $approved
+                ? 'Az Elnök jóváhagyta a hozzáférésedet. Az email címed ellenőrzése után beléphetsz.'
+                : $data['decision_note'],
+            '/login'
+        ));
+        Audit::record($user, $approved ? 'registration_approved' : 'registration_rejected', $before);
+
+        return back()->with('success', $approved
+            ? 'A regisztráció jóváhagyva; a jelentkező értesítést kapott.'
+            : 'A regisztráció elutasítva; a döntés naplózva lett.');
     }
 
     private function authorizePresident(Request $request): void

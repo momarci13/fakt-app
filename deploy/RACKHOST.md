@@ -2,6 +2,15 @@
 
 Ez az útmutató a `nxt02408` cPanel-fiókhoz és az `app.fakt.org.hu` aldomainhez készült. A nyilvános `fakt.org.hu` oldal változatlan marad. A telepíthető csomag PHP 8.3-at és Laravel 13-at igényel.
 
+Az aktuális kiadás önregisztrációt, elnöki fiókjóváhagyást és szigorú vezetői feladatdelegálást tartalmaz. A hozzá tartozó változások: [CHANGELOG-2026-08-18.md](../docs/CHANGELOG-2026-08-18.md). Minden élesítéshez készíts külön másolatot a [DEPLOYMENT-LOG-TEMPLATE.md](DEPLOYMENT-LOG-TEMPLATE.md) fájlból.
+
+## Melyik telepítési útvonalat válaszd?
+
+- **Első telepítés:** nincs használatban lévő FAKT-adatbázis, nincs megőrzendő `.env`, és az `app.fakt.org.hu` még nem szolgál ki működő alkalmazást. Kövesd sorrendben ennek a dokumentumnak az 1–8. fejezetét.
+- **Meglévő telepítés frissítése:** az aldomain már működik, van Elnök vagy tagi adat, illetve korábban már futott migráció. Ne generálj új kulcsot és ne seedelj. Kövesd a [RACKHOST-QUICK-DEPLOY.md](RACKHOST-QUICK-DEPLOY.md) staging és mappacsere eljárását.
+
+Ha nem vagy biztos benne, hogy üres-e a rendszer, kezeld meglévő telepítésként. Ez a biztonságosabb út.
+
 ## 0. Mielőtt elkezded
 
 Ellenőrizd a cPanelben:
@@ -22,6 +31,7 @@ Az alkalmazást ne a GitHub forráskód ZIP-jéből telepítsd. Az nem tartalmaz
 5. Ezt a második ZIP-et töltsd fel a cPanelbe. Kibontva két mappát ad:
    - `fakt-app-core`: Laravel, `vendor/`, konfiguráció és a lefordított assetek;
    - `fakt-app-public`: kizárólag a weben közvetlenül elérhető fájlok.
+6. A csomag tartalmazza még a részletes telepítési útmutatót, a rövid frissítési útmutatót, a változásnaplót és a kitöltendő telepítési naplót. A telepítés megkezdése előtt jegyezd fel a GitHub Actions futás URL-jét és a commit SHA-t.
 
 A Rackhost szerveren nem kell Composer, npm, Node.js vagy Terminal.
 
@@ -143,6 +153,27 @@ Régi `ea-php74` scheduler sor ne maradjon aktív.
 5. Töröld a `fakt-deploy.log` fájlt, mert az első ideiglenes jelszót tartalmazhatja.
 6. Készíts új adatbázis- és fájlmentést a működő állapotról.
 
+### Jóváhagyásos regisztráció ellenőrzése
+
+1. Kijelentkezve nyisd meg a `https://app.fakt.org.hu/register` címet.
+2. Hozz létre egy külön tesztfiókot valódi, elérhető email címmel.
+3. A regisztráció után a rendszernek a belépési oldalra kell visszairányítania, és elnöki jóváhagyásra váró állapotot kell jeleznie.
+4. Próbálj belépni a tesztfiókkal. A belépést a rendszernek meg kell tagadnia.
+5. Lépj be az Elnökkel → **Adminisztráció → Regisztrációs kérelmek**.
+6. Ellenőrizd a nevet, emailt, évfolyamot és bemutatkozást, majd hagyd jóvá.
+7. Ellenőrizd, hogy a jelentkező emailt kapott, majd végezze el az email-ellenőrzést.
+8. A tesztfióknak ezután be kell tudnia lépni.
+9. Hozz létre második tesztkérelmet, és ellenőrizd az indokolt elutasítást is. Az elutasított fiók nem léphet be.
+
+### Delegálási lánc ellenőrzése
+
+1. **Elnök:** a feladat felelőslistájában saját magát, Alelnököket és Projektvezetőket lásson; közvetlen Teamtagot ne.
+2. **Alelnök:** csak a saját portfólió Teamvezetőit lássa.
+3. **Teamvezető:** csak a saját Team tagjait lássa.
+4. **Projektvezető:** csak az általa vezetett aktív projektek tagjait lássa.
+5. **Tag:** csak saját feladatot hozhasson létre.
+6. Minden szinten hozz létre egy tesztfeladatot, léptesd állapotban, és küldj hozzá hozzászólást.
+
 ## 9. Biztonságos frissítés meglévő telepítésről
 
 A PHP 7.4/Laravel 8 → PHP 8.3/Laravel 13 átálláshoz a rövid, sorrendhelyes eljárás a [RACKHOST-QUICK-DEPLOY.md](RACKHOST-QUICK-DEPLOY.md) fájlban található. Ne másold rá vakon az új fájlokat a működő core mappára: staging mappát és visszaállítható mappacserét használj.
@@ -157,3 +188,38 @@ Minden kiadás előtt mentsd:
 - az aktuális core és public mappákat.
 
 Sikertelen frissítésnél állítsd vissza az adatbázismentést, a régi core/public mappákat és a hozzájuk tartozó PHP-verziót. A visszaállítást legalább havonta próbáld ki ellenőrzött környezetben.
+
+## 11. Gyakori hibák az aktuális kiadásnál
+
+### A `/register` 404-et ad
+
+- Biztosan az aktuális GitHub Actions artifact került fel, nem a repository forrás-ZIP-je.
+- Futtasd az `optimize:clear`, majd `optimize` parancsot.
+- Ellenőrizd, hogy a core `config/fortify.php` fájlban engedélyezett a regisztráció.
+
+### A regisztráció sikeres, de nem jelenik meg az Admin oldalon
+
+- Futtasd a `migrate --force` parancsot; az új `approval_status` mezők nélkül a kiadás nem tekinthető telepítettnek.
+- Ellenőrizd, hogy az elnöki fióknak az aktív félévben aktív `president` szerepe van.
+- Nézd meg a `storage/logs/laravel.log` végét.
+
+### A jóváhagyási email nem érkezik meg
+
+- Ellenőrizd a cPanel SMTP-adatokat a `.env` fájlban.
+- Ellenőrizd, hogy pontosan egy `schedule:run` cron fut percenként.
+- A scheduler indítja a rövid életű `queue:work --stop-when-empty` feldolgozót; ezért az email 1–2 percet késhet.
+- Nézd meg a `jobs` és `failed_jobs` táblát phpMyAdminban, valamint a Laravel logot.
+
+### Egy vezető nem látja a kívánt felelőst
+
+- Ellenőrizd az aktív félévet, a kinevezés `starts_at`, `ends_at`, `revoked_at` értékeit és a Team-/projekttagságot.
+- A függő vagy elutasított fiók szándékosan nem delegálható.
+- Az Elnök szándékosan nem delegál közvetlenül Teamtagnak; először Alelnöknek vagy Projektvezetőnek kell kiosztania.
+
+### 500-as hiba közvetlenül migráció után
+
+1. Ne futtass újabb, találomra választott Artisan parancsokat.
+2. Ellenőrizd a `fakt-deploy.log` és `storage/logs/laravel.log` végét.
+3. Ellenőrizd a `storage` és `bootstrap/cache` írási jogát.
+4. Futtasd egyszer az `optimize:clear`, majd `optimize` parancsot.
+5. Ha a hiba fennmarad, hajtsd végre a dokumentált visszaállítást az adatbázismentéssel együtt.

@@ -29,7 +29,7 @@ class OrganizationController extends Controller
             'semester' => $semester,
             'units' => $units,
             'projects' => Project::query()->where('semester_id', ($nullsafeVariable2 = $semester) ? $nullsafeVariable2->id : null)->with(['lead:id,name', 'members:id,name', 'orgUnit:id,name'])->get(),
-            'members' => User::query()->with('profile')->orderBy('name')->get(['id', 'name', 'email']),
+            'members' => User::query()->where('approval_status', 'approved')->with('profile')->orderBy('name')->get(['id', 'name', 'email']),
             'canAdmin' => $request->user()->isPresident(),
             'managedUnitIds' => $request->user()->managedOrgUnitIds(),
         ]);
@@ -39,7 +39,7 @@ class OrganizationController extends Controller
     {
         $semester = Semester::activeOrFail();
         $data = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
+            'user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
             'org_unit_id' => ['nullable', 'exists:org_units,id'],
             'role' => ['required', Rule::in(['vice_president', 'team_leader'])],
             'note' => ['nullable', 'string', 'max:1000'],
@@ -79,7 +79,7 @@ class OrganizationController extends Controller
     public function assignMember(Request $request): RedirectResponse
     {
         $semester = Semester::activeOrFail();
-        $data = $request->validate(['user_id' => ['required', 'exists:users,id'], 'org_unit_id' => ['required', 'exists:org_units,id']]);
+        $data = $request->validate(['user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')], 'org_unit_id' => ['required', 'exists:org_units,id']]);
         if (! AccessScope::managesUnit($request->user(), (int) $data['org_unit_id'])) {
             abort(403);
         }
@@ -98,8 +98,8 @@ class OrganizationController extends Controller
         $semester = Semester::activeOrFail();
         $data = $request->validate([
             'name' => ['required', 'string', 'max:150'], 'description' => ['nullable', 'string', 'max:3000'],
-            'org_unit_id' => ['nullable', 'exists:org_units,id'], 'lead_user_id' => ['required', 'exists:users,id'],
-            'member_ids' => ['array'], 'member_ids.*' => ['exists:users,id'], 'ends_at' => ['nullable', 'date', 'after_or_equal:today'],
+            'org_unit_id' => ['nullable', 'exists:org_units,id'], 'lead_user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
+            'member_ids' => ['array'], 'member_ids.*' => [Rule::exists('users', 'id')->where('approval_status', 'approved')], 'ends_at' => ['nullable', 'date', 'after_or_equal:today'],
         ]);
         if (! $request->user()->isPresident() && ! AccessScope::managesUnit($request->user(), $data['org_unit_id'] ?? null)) {
             abort(403);

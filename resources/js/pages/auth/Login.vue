@@ -15,7 +15,7 @@ defineOptions({
     layout: {
         title: 'Belépés a FAKT alkalmazásba',
         description:
-            'Meghívott tagként az email címeddel és jelszavaddal léphetsz be.',
+            'Jóváhagyott tagként az email címeddel és jelszavaddal léphetsz be.',
     },
 });
 defineProps<{ status?: string; canResetPassword: boolean }>();
@@ -84,8 +84,9 @@ defineProps<{ status?: string; canResetPassword: boolean }>();
             >
         </div>
         <p class="text-center text-sm text-muted-foreground">
-            A hozzáférést az aktuális Elnök kezeli. Ha még nincs meghívód,
-            keresd a vezetőséget.
+            Még nincs fiókod?
+            <TextLink href="/register">Hozzáférés igénylése</TextLink>
+            · A kérelmet az aktuális Elnök bírálja el.
         </p>
     </Form>
 </template>

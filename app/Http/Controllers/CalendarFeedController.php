@@ -11,7 +11,7 @@ class CalendarFeedController extends Controller
 {
     public function __invoke(string $token): Response
     {
-        $user = User::query()->where('calendar_token', $token)->firstOrFail();
+        $user = User::query()->where('approval_status', 'approved')->where('calendar_token', $token)->firstOrFail();
         $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FAKT//Belső alkalmazás//HU', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:FAKT – '.$this->escape($user->name)];
 
         foreach (PersonalCalendar::events($user) as $event) {

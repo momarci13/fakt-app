@@ -60,9 +60,16 @@ class BootstrapPresident extends Command
                 $user->password = Hash::make($generatedPassword);
                 $user->calendar_token = Str::random(48);
                 $user->save();
+            } else {
+                $user->update([
+                    'approval_status' => 'approved',
+                    'approved_at' => $user->approved_at ?? now(),
+                    'rejected_at' => null,
+                    'rejection_reason' => null,
+                ]);
             }
 
-            MemberProfile::query()->firstOrCreate(
+            MemberProfile::query()->updateOrCreate(
                 ['user_id' => $user->id],
                 ['member_status' => 'active']
             );

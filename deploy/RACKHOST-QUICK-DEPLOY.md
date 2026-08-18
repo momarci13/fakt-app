@@ -1,12 +1,13 @@
-# Rackhost PHP 8.3 frissítés — rövid, biztonságos eljárás
+# Rackhost PHP 8.3 frissítés — jóváhagyásos regisztrációs kiadás
 
-Ezt használd a már működő `app.fakt.org.hu` telepítés PHP 7.4/Laravel 8 verziójáról az új PHP 8.3/Laravel 13 kiadásra történő frissítéséhez. A sorrendet tartsd be.
+Ezt használd, ha az `app.fakt.org.hu` címen már van működő alkalmazás vagy megőrzendő adatbázis. A kiadás PHP 8.3/Laravel 13 mellett önregisztrációt, elnöki jóváhagyást és szigorú feladatdelegálást vezet be. A sorrendet tartsd be, és közben töltsd a `DEPLOYMENT-LOG-TEMPLATE.md` másolatát.
 
 ## 1. Töltsd le a helyes csomagot
 
 1. GitHub → **Actions → cPanel release package**.
 2. Csak zöld, sikeres futás artifactját töltsd le.
 3. Csomagold ki az artifactot, majd a benne lévő `fakt-cpanel-release.zip` fájlt is.
+4. Ellenőrizd, hogy a csomagban megtalálható a `CHANGELOG.md`; ebből azonosítható a megfelelő kiadás.
 
 ## 2. Készíts teljes mentést
 
@@ -32,6 +33,7 @@ Mentés nélkül ne folytasd.
    - az eredeti `APP_KEY` változatlan marad.
 5. Másold át a régi `storage/app/private` **tartalmát** az új core azonos mappájába.
 6. Az új `storage` és `bootstrap/cache` jogosultsága legyen `0755`, szükség esetén `0775`, de soha ne `0777`.
+7. Ne másold át a régi `vendor`, `bootstrap/cache` vagy `public/build` tartalmát az új kiadásba.
 
 ## 4. Ellenőrizd az új core-t még az átváltás előtt
 
@@ -78,6 +80,14 @@ Ideiglenes **Once Per Minute** cron:
 
 Várj 1–2 percet. A naplóban nem lehet `ERROR`, `SQLSTATE`, `Class not found` vagy permission hiba. Ezután azonnal töröld az ideiglenes cron sort.
 
+A migrációk között sikeresen szerepelnie kell ennek:
+
+```text
+2026_08_18_000000_add_account_approval_to_users_table
+```
+
+A korábbi fiókok `approved` állapotban maradnak. Ne módosítsd ezt kézzel phpMyAdminban.
+
 ## 9. Hozd létre az új állandó cront
 
 **Once Per Minute**:
@@ -95,6 +105,9 @@ Pontosan egy scheduler cron maradjon.
 3. Próbálj hibás jelenlegi jelszóval menteni: validációs hibát kell kapnod, nem 405-ös oldalt.
 4. Tesztelj egy emailt, fájlletöltést és ICS feedet.
 5. Ellenőrizd a Laravel naplót: `fakt-app-core/storage/logs`.
+6. Nyisd meg a `/register` oldalt, hozz létre tesztkérelmet, és ellenőrizd, hogy jóváhagyás előtt nem lehet belépni.
+7. Elnökként bíráld el a kérelmet az Admin oldalon, és ellenőrizd az emailt.
+8. Ellenőrizd a feladatoldalon az Elnök → Alelnök/Projektvezető → Teamvezető → Teamtag felelőslistákat.
 
 Ha minden rendben, 24–48 óra után törölheted a `fakt-app-core-backup` és `public_html/fakt-app-backup` mappát. A biztonsági mentést tartsd meg a megőrzési szabály szerint.
 

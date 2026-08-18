@@ -1,6 +1,6 @@
 # FAKT belső alkalmazás
 
-Magyar nyelvű, mobilra optimalizált Laravel + Vue/Inertia PWA a FAKT szervezeti működéséhez. Az alkalmazás meghívásos, szerepkör- és hatóköralapú, és a publikus honlaptól külön, az `app.fakt.org.hu` címen telepíthető.
+Magyar nyelvű, mobilra optimalizált Laravel + Vue/Inertia PWA a FAKT szervezeti működéséhez. Az alkalmazás elnöki jóváhagyásos önregisztrációt és közvetlen meghívást is támogat, szerepkör- és hatóköralapú, és a publikus honlaptól külön, az `app.fakt.org.hu` címen telepíthető.
 
 ## Technikai állapot
 
@@ -17,10 +17,11 @@ A futtatókörnyezet és a kiadásbiztonság részletei: [docs/RUNTIME_SECURITY.
 ## Fő modulok
 
 - Elnök → Alelnök → Teamvezető → Teamtag időbeli kinevezési lánc és auditnapló;
+- önregisztráció email-ellenőrzéssel, elnöki jóváhagyással vagy indokolt elutasítással;
 - félévenként módosítható portfólió-, Team- és projektstruktúra;
 - kurzuskínálat, preferencia, elbírálás, férőhely és várólista;
 - személyes összevont naptár, RSVP, jelenlét és visszavonható privát ICS-feed;
-- hierarchikus Team-/projektfeladatok, több felelős, részfeladat, státusz és komment;
+- szigorú Elnök → Alelnök/Projektvezető → Teamvezető → Teamtag feladatdelegálás, több felelős, részfeladat, státusz és komment;
 - verziózott kötelezettségi szabályok, életút-eredmények és kérelmek;
 - védett bizonyítékfeltöltés, alumni címtár és mentorprogram;
 - célzott közlemények, alkalmazáson belüli és email-értesítések;
@@ -116,18 +117,22 @@ A jelenlegi tárhelyen nincs Terminal/SSH, ezért ne töltsd fel egyszerűen a G
 
 A már működő PHP 7.4/Laravel 8 példány biztonságos PHP 8.3/Laravel 13 frissítéséhez kövesd a [rövid frissítési segédletet](deploy/RACKHOST-QUICK-DEPLOY.md). A teljes első telepítéshez és hibaelhárításhoz használd a [részletes Rackhost útmutatót](deploy/RACKHOST.md).
 
+Minden élesítéshez töltsd ki a [telepítési napló sablonját](deploy/DEPLOYMENT-LOG-TEMPLATE.md), és őrizd meg a GitHub commit SHA-val, az Actions futás URL-jével és a mentések helyével együtt. Titkot vagy jelszót ne írj a naplóba.
+
 ## Biztonság és adatmegőrzés
 
-Az alkalmazás publikus regisztrációt nem enged. Email-ellenőrzést, rate limitinget, erős jelszóhash-t, jelszó-resetet és opcionális TOTP MFA-t használ. A mellékletek privát tárhelyen vannak; letöltésük jogosultság-ellenőrzött, a méretlimit 10 MB, futtatható fájl nem tölthető fel.
+Az alkalmazás publikus regisztrációt enged, de az új fiók az Elnök naplózott jóváhagyásáig nem fér hozzá a belső felülethez, szervezeti listákhoz vagy ICS-feedhez. Email-ellenőrzést, rate limitinget, modell-szintű jelszóhash-t, jelszó-resetet és opcionális TOTP MFA-t használ. A mellékletek privát tárhelyen vannak; letöltésük jogosultság-ellenőrzött, a méretlimit 10 MB, futtatható fájl nem tölthető fel.
 
 Az ütemezett `fakt:retention` parancs a konfigurált 12/24 hónapos részletes adatmegőrzést hajtja végre. A kurzus-, tisztség- és diplomaeredmények hosszú távon megmaradnak. A végleges adatkezelési szabályzatot és megőrzési időket éles indulás előtt a FAKT-nak jóvá kell hagynia.
 
 ## Fontos fájlok
 
 - `database/migrations/2026_08_09_000000_create_fakt_domain_tables.php` – teljes adatmodell;
+- `database/migrations/2026_08_18_000000_add_account_approval_to_users_table.php` – fiók-jóváhagyási állapotok;
 - `database/seeders/DatabaseSeeder.php` – helyi bemutatóstruktúra;
 - `routes/web.php` – alkalmazásfolyamatok és védett útvonalak;
 - `tests/Feature/FaktWorkflowTest.php` – kritikus jogosultsági és üzleti folyamatok;
 - `docs/PERMISSIONS.md` – jogosultsági mátrix;
 - `docs/IMPORT.md` – importformátum;
 - `.github/workflows/cpanel-release.yml` – SSH nélküli telepítési csomag.
+- `docs/CHANGELOG-2026-08-18.md` – a jóváhagyásos regisztrációs kiadás részletes változásnaplója.

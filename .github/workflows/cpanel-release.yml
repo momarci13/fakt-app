@@ -42,7 +42,7 @@ jobs:
         run: |
           composer validate --strict
           composer audit --locked --no-interaction
-          php artisan test
+          php vendor/bin/phpunit
 
       - name: Validate and build frontend
         run: |
@@ -74,8 +74,11 @@ jobs:
           cp deploy/cpanel-public-index.php release/fakt-app-public/index.php
           cp deploy/.env.cpanel.example release/fakt-app-core/.env.cpanel.example
           cp deploy/RACKHOST-QUICK-DEPLOY.md release/DEPLOYMENT-GUIDE.md
+          cp deploy/RACKHOST.md release/DEPLOYMENT-GUIDE-DETAILED.md
+          cp deploy/DEPLOYMENT-LOG-TEMPLATE.md release/DEPLOYMENT-LOG-TEMPLATE.md
+          cp docs/CHANGELOG-2026-08-18.md release/CHANGELOG.md
           cd release
-          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md
+          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md
 
       - name: Upload cPanel package
         uses: actions/upload-artifact@v6

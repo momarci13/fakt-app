@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -32,6 +33,10 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
+    protected $attributes = [
+        'approval_status' => 'approved',
+    ];
+
     protected $fillable = [
         'name',
         'email',
@@ -40,6 +45,12 @@ class User extends Authenticatable implements MustVerifyEmail
         'invited_at',
         'last_seen_at',
         'calendar_token',
+        'approval_status',
+        'registration_note',
+        'approved_by',
+        'approved_at',
+        'rejected_at',
+        'rejection_reason',
     ];
 
     protected $hidden = [
@@ -55,16 +66,23 @@ class User extends Authenticatable implements MustVerifyEmail
      * @return array<string, string>
      */
     protected $casts = [
+        'password' => 'hashed',
         'email_verified_at' => 'datetime',
         'two_factor_confirmed_at' => 'datetime',
         'invited_at' => 'datetime',
         'last_seen_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     /** @return HasOne<MemberProfile, $this> */
     public function profile(): HasOne
     {
         return $this->hasOne(MemberProfile::class);
+    }
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'approved_by');
     }
     /** @return HasMany<RoleAssignment, $this> */
     public function roles(): HasMany
@@ -101,12 +119,17 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->roles()
             ->where('semester_id', $semesterId)
             ->whereNull('revoked_at')
-            ->where(fn ($q) => $q->whereNull('ends_at')->orWhereDate('ends_at', '>=', now()))
+            ->whereDate('starts_at', '<=', today())
+            ->where(fn ($q) => $q->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()))
             ->pluck('role');
     }
     public function isPresident(): bool
     {
         return $this->activeRoleNames()->contains('president');
+    }
+    public function isApproved(): bool
+    {
+        return $this->approval_status === 'approved';
     }
     public function isLeader(): bool
     {
@@ -122,7 +145,13 @@ class User extends Authenticatable implements MustVerifyEmail
             return OrgUnit::query()->where('semester_id', $semester->id)->pluck('id');
         }
 
-        $roles = $this->roles()->with('orgUnit.children')->where('semester_id', $semester->id)->whereNull('revoked_at')->get();
+        $roles = $this->roles()
+            ->with('orgUnit.children')
+            ->where('semester_id', $semester->id)
+            ->whereNull('revoked_at')
+            ->whereDate('starts_at', '<=', today())
+            ->where(fn ($query) => $query->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()))
+            ->get();
 
         return $roles->flatMap(function (RoleAssignment $role) {
             if (! $role->orgUnit) {

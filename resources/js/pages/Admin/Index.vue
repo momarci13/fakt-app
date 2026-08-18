@@ -3,11 +3,14 @@ import { Form, Head } from '@inertiajs/vue3';
 import {
     Bell,
     BookOpenCheck,
+    Clock3,
     History,
     Megaphone,
     ShieldCheck,
     Upload,
     UserPlus,
+    UserCheck,
+    UserX,
     UsersRound,
 } from '@lucide/vue';
 import FaktPageHeader from '@/components/FaktPageHeader.vue';
@@ -53,14 +56,23 @@ type ImportBatch = {
         errors?: string[];
     }>;
 };
+type PendingRegistration = {
+    id: number;
+    name: string;
+    email: string;
+    registration_note: string;
+    created_at: string;
+    profile?: { cohort_year?: number };
+};
 defineProps<{
     semester: { name: string; rules_published_at?: string } | null;
     semesters: unknown[];
     rules: Rule[];
     audits: Audit[];
     pendingRequests: MemberRequest[];
+    pendingRegistrations: PendingRegistration[];
     importBatches: ImportBatch[];
-    stats: { users: number; active: number; alumni: number };
+    stats: { users: number; active: number; alumni: number; pending: number };
 }>();
 const date = (value: string) =>
     new Intl.DateTimeFormat('hu-HU', {
@@ -78,10 +90,10 @@ const date = (value: string) =>
         <FaktPageHeader
             eyebrow="Elnöki rendszeradminisztráció"
             title="Működés és szabályozás"
-            description="Meghívók, féléves szabályok, kérelmek és a változásnapló egy védett felületen."
+            description="Regisztrációk, meghívók, féléves szabályok, kérelmek és a változásnapló egy védett felületen."
         />
 
-        <section class="grid gap-4 sm:grid-cols-3">
+        <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div class="fakt-panel p-5">
                 <UsersRound class="mb-4 size-5 text-primary" />
                 <p class="text-3xl font-bold">{{ stats.users }}</p>
@@ -99,6 +111,103 @@ const date = (value: string) =>
                 <p class="text-3xl font-bold">{{ stats.alumni }}</p>
                 <p class="text-sm text-muted-foreground">Alumni</p>
             </div>
+            <a
+                href="#regisztraciok"
+                class="fakt-panel p-5 transition hover:border-amber-400"
+            >
+                <Clock3 class="mb-4 size-5 text-amber-600" />
+                <p class="text-3xl font-bold">{{ stats.pending }}</p>
+                <p class="text-sm text-muted-foreground">Jóváhagyásra vár</p>
+            </a>
+        </section>
+
+        <section
+            id="regisztraciok"
+            class="fakt-panel scroll-mt-6 overflow-hidden"
+        >
+            <div class="border-b p-5">
+                <div class="flex items-center gap-3">
+                    <UserCheck class="size-5 text-primary" />
+                    <div>
+                        <h2 class="font-bold">Regisztrációs kérelmek</h2>
+                        <p class="text-sm text-muted-foreground">
+                            Csak jóváhagyás után nyílik meg a belső alkalmazás.
+                            Minden döntés naplózott.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="divide-y">
+                <article
+                    v-for="registration in pendingRegistrations"
+                    :key="registration.id"
+                    class="grid gap-4 p-5 lg:grid-cols-[1fr_25rem] lg:items-start"
+                >
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="font-bold">{{ registration.name }}</p>
+                            <span
+                                v-if="registration.profile?.cohort_year"
+                                class="rounded-full bg-muted px-2 py-1 text-[11px] font-semibold"
+                            >
+                                {{ registration.profile.cohort_year }}. évfolyam
+                            </span>
+                        </div>
+                        <p class="mt-1 text-xs text-muted-foreground">
+                            {{ registration.email }} ·
+                            {{ date(registration.created_at) }}
+                        </p>
+                        <p
+                            class="mt-4 text-sm leading-6 whitespace-pre-line text-muted-foreground"
+                        >
+                            {{ registration.registration_note }}
+                        </p>
+                    </div>
+                    <Form
+                        :action="`/admin/regisztraciok/${registration.id}`"
+                        method="patch"
+                        class="grid gap-2 rounded-xl bg-muted/50 p-3"
+                        v-slot="{ processing, errors }"
+                    >
+                        <textarea
+                            name="decision_note"
+                            class="fakt-textarea"
+                            placeholder="Elutasítás esetén kötelező indoklás"
+                        />
+                        <p
+                            v-if="errors.decision_note"
+                            class="text-xs text-destructive"
+                        >
+                            {{ errors.decision_note }}
+                        </p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <Button
+                                name="status"
+                                value="approved"
+                                type="submit"
+                                :disabled="processing"
+                            >
+                                <UserCheck class="size-4" />Jóváhagyás
+                            </Button>
+                            <Button
+                                name="status"
+                                value="rejected"
+                                type="submit"
+                                variant="outline"
+                                :disabled="processing"
+                            >
+                                <UserX class="size-4" />Elutasítás
+                            </Button>
+                        </div>
+                    </Form>
+                </article>
+                <p
+                    v-if="!pendingRegistrations.length"
+                    class="p-8 text-center text-sm text-muted-foreground"
+                >
+                    Nincs elbírálandó regisztráció.
+                </p>
+            </div>
         </section>
 
         <section class="grid gap-6 xl:grid-cols-2">
@@ -108,7 +217,7 @@ const date = (value: string) =>
                     <div>
                         <h2 class="font-bold">Tag meghívása</h2>
                         <p class="text-sm text-muted-foreground">
-                            Meghívásos, publikus regisztráció nélkül
+                            Közvetlen, automatikusan jóváhagyott hozzáférés
                         </p>
                     </div>
                 </div>

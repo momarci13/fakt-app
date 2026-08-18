@@ -25,7 +25,7 @@ class CalendarController extends Controller
         return Inertia::render('Calendar/Index', [
             'events' => $events,
             'canCreate' => $request->user()->isLeader(),
-            'members' => $request->user()->isLeader() ? User::query()->orderBy('name')->get(['id', 'name']) : [],
+            'members' => $request->user()->isLeader() ? User::query()->where('approval_status', 'approved')->orderBy('name')->get(['id', 'name']) : [],
             'calendarUrl' => $request->user()->calendar_token ? route('calendar.feed', $request->user()->calendar_token) : null,
         ]);
     }
@@ -62,7 +62,7 @@ class CalendarController extends Controller
     public function finalize(Request $request, Event $event): RedirectResponse
     {
         abort_unless((int) $event->organizer_id === (int) $request->user()->id || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
-        $data = $request->validate(['user_id' => ['required', 'exists:users,id'], 'final_status' => ['required', Rule::in(['present', 'absent', 'excused'])]]);
+        $data = $request->validate(['user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')], 'final_status' => ['required', Rule::in(['present', 'absent', 'excused'])]]);
         $attendance = Attendance::query()->updateOrCreate(['event_id' => $event->id, 'user_id' => $data['user_id']], ['final_status' => $data['final_status'], 'finalized_by' => $request->user()->id, 'finalized_at' => now()]);
         Audit::record($attendance, 'attendance_finalized');
 

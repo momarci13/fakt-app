@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\FaktNotification;
 use App\Support\AccessScope;
 use App\Support\Audit;
+use App\Support\TaskDelegation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -17,11 +18,15 @@ use Inertia\Response;
 
 class TaskController extends Controller
 {
+    public function __construct(private readonly TaskDelegation $delegation)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $semester = Semester::active();
         $semesterId = $semester ? $semester->id : null;
-        $tasks = Task::query()->visibleTo($request->user())->where('semester_id', $semesterId)->with(['assignees:id,name', 'orgUnit:id,name,color', 'project:id,name', 'comments.user:id,name'])->orderBy('due_at')->get();
+        $tasks = Task::query()->visibleTo($request->user())->where('semester_id', $semesterId)->with(['creator:id,name', 'assignees:id,name', 'orgUnit:id,name,color', 'project:id,name', 'comments.user:id,name'])->orderBy('due_at')->get();
         $units = collect();
 
         if ($semester) {
@@ -33,10 +38,11 @@ class TaskController extends Controller
 
         return Inertia::render('Tasks/Index', [
             'tasks' => $tasks,
-            'canAssign' => $request->user()->isLeader(),
-            'assignees' => $this->assignableUsers($request->user()),
+            'canAssign' => $this->delegation->assignableIdsFor($request->user())->count() > 1,
+            'assignees' => $this->delegation->optionsFor($request->user()),
+            'delegation' => $this->delegation->summaryFor($request->user()),
             'units' => $units,
-            'projects' => Project::query()->where('semester_id', $semesterId)->where(fn ($q) => $q->where('lead_user_id', $request->user()->id)->orWhereHas('members', fn ($m) => $m->where('users.id', $request->user()->id)))->get(['id', 'name']),
+            'projects' => $this->availableProjects($request->user(), $semesterId),
         ]);
     }
 
@@ -56,7 +62,7 @@ class TaskController extends Controller
         if (($data['project_id'] ?? null) && ! AccessScope::managesProject($actor, $data['project_id'])) {
             abort(403);
         }
-        $allowed = $this->assignableUsers($actor)->pluck('id');
+        $allowed = $this->delegation->assignableIdsFor($actor);
         abort_if(collect($data['assignee_ids'])->diff($allowed)->isNotEmpty(), 403);
 
         $task = Task::query()->create(array_merge(collect($data)->except('assignee_ids')->all(), ['semester_id' => $semester->id, 'created_by' => $actor->id, 'status' => 'todo', 'visibility' => 'scope']));
@@ -89,14 +95,22 @@ class TaskController extends Controller
         return back()->with('success', 'A hozzászólás elküldve.');
     }
 
-    private function assignableUsers(User $user)
+    private function availableProjects(User $user, ?int $semesterId)
     {
         if ($user->isPresident()) {
-            return User::query()->whereHas('profile', fn ($q) => $q->whereIn('member_status', ['active', 'senior']))->orderBy('name')->get(['id', 'name']);
+            return Project::query()->where('semester_id', $semesterId)->where('status', 'active')->orderBy('name')->get(['id', 'name']);
         }
-        $unitIds = $user->managedOrgUnitIds();
-        $projectUserIds = Project::query()->where('lead_user_id', $user->id)->with('members:id')->get()->flatMap->members->pluck('id');
 
-        return User::query()->whereKey($user->id)->orWhereHas('teamMemberships', fn ($q) => $q->whereIn('org_unit_id', $unitIds))->orWhereIn('id', $projectUserIds)->orderBy('name')->get(['id', 'name']);
+        $unitIds = $user->managedOrgUnitIds();
+
+        return Project::query()
+            ->where('semester_id', $semesterId)
+            ->where('status', 'active')
+            ->where(fn ($query) => $query
+                ->where('lead_user_id', $user->id)
+                ->orWhereIn('org_unit_id', $unitIds)
+                ->orWhereHas('members', fn ($members) => $members->where('users.id', $user->id)))
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 }
