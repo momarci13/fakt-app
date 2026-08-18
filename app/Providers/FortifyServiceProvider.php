@@ -5,13 +5,13 @@ namespace App\Providers;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Models\User;
+use App\Support\SecurityLog;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -43,22 +43,19 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::authenticateUsing(function (Request $request): ?User {
             $email = Str::lower(trim((string) $request->input('email')));
             $user = User::query()->where('email', $email)->first();
+            $password = (string) $request->input('password');
+            $dummyHash = '$2y$12$amBo4gApb/4SywyYYGuqPedCM633XlObud78GUCIK6MdFBAEJEeIu';
+            $passwordValid = Hash::check($password, $user?->password ?? $dummyHash);
 
-            if (! $user || ! Hash::check((string) $request->input('password'), $user->password)) {
+            if (! $user || ! $passwordValid || ! $user->isApproved()) {
+                SecurityLog::warning('login_denied', $request, [
+                    'identity_fingerprint' => SecurityLog::fingerprint($email),
+                ]);
                 return null;
             }
 
-            if ($user->approval_status === 'pending') {
-                throw ValidationException::withMessages([
-                    'email' => 'A fiókod az Elnök jóváhagyására vár. A döntésről emailt kapsz.',
-                ]);
-            }
-
-            if ($user->approval_status === 'rejected') {
-                throw ValidationException::withMessages([
-                    'email' => 'A regisztrációs kérelmedet elutasították. Keresd az Elnököt, ha egyeztetni szeretnél.',
-                ]);
-            }
+            // Persistent login cookies are intentionally disabled for this internal system.
+            $request->merge(['remember' => false]);
 
             return $user;
         });
@@ -86,7 +83,7 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::resetPasswordView(fn (Request $request) => Inertia::render('auth/ResetPassword', [
             'email' => $request->email,
             'token' => $request->route('token'),
-            'passwordRules' => 'minlength:12',
+            'passwordRules' => 'minlength:15 maxlength:128',
         ]));
 
         Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('auth/ForgotPassword', [
@@ -98,7 +95,7 @@ class FortifyServiceProvider extends ServiceProvider
         ]));
 
         Fortify::registerView(fn () => Inertia::render('auth/Register', [
-            'passwordRules' => 'minlength:12',
+            'passwordRules' => 'minlength:15 maxlength:128',
         ]));
 
         Fortify::twoFactorChallengeView(fn () => Inertia::render('auth/TwoFactorChallenge'));
@@ -116,10 +113,22 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = md5(mb_strtolower((string) $request->input(Fortify::username())).'|'.$request->ip());
+            $identity = mb_strtolower(trim((string) $request->input(Fortify::username())));
+            $throttleKey = hash_hmac('sha256', $identity.'|'.$request->ip(), (string) config('app.key'));
 
-            return Limit::perMinute(5)->by($throttleKey);
+            return [
+                Limit::perMinute(5)->by($throttleKey),
+                Limit::perMinute(30)->by('login-ip:'.SecurityLog::fingerprint((string) $request->ip())),
+            ];
         });
 
+        RateLimiter::for('mutations', fn (Request $request) => Limit::perMinute(60)
+            ->by('mutation:'.($request->user()?->id ?? SecurityLog::fingerprint((string) $request->ip()))));
+
+        RateLimiter::for('sensitive', fn (Request $request) => Limit::perMinute(10)
+            ->by('sensitive:'.($request->user()?->id ?? SecurityLog::fingerprint((string) $request->ip()))));
+
+        RateLimiter::for('uploads', fn (Request $request) => Limit::perMinutes(10, 5)
+            ->by('upload:'.($request->user()?->id ?? SecurityLog::fingerprint((string) $request->ip()))));
     }
 }

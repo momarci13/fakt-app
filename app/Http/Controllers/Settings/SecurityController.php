@@ -7,6 +7,9 @@ use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Hash;
+use App\Support\Audit;
+use App\Support\SessionSecurity;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,7 +24,7 @@ class SecurityController extends Controller
     {
         $props = [
             'canManageTwoFactor' => Features::canManageTwoFactorAuthentication(),
-            'passwordRules' => 'minlength:12',
+            'passwordRules' => 'minlength:15 maxlength:128',
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {
@@ -37,9 +40,13 @@ class SecurityController extends Controller
      */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
-        $request->user()->update([
+        $request->user()->forceFill([
             'password' => Hash::make($request->password),
-        ]);
+            'remember_token' => Str::random(60),
+        ])->save();
+        SessionSecurity::revokeFor($request->user(), $request->session()->getId());
+        $request->session()->regenerate();
+        Audit::record($request->user(), 'password_changed', null, ['user_id' => $request->user()->id]);
 
         return back()->with('success', __('Password updated.'));
     }

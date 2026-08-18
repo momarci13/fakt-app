@@ -140,8 +140,8 @@ class FaktWorkflowTest extends TestCase
         $candidate = $this->member('Jelölt');
         $payload = ['user_id' => $candidate->id, 'org_unit_id' => $this->portfolio->id, 'role' => 'vice_president'];
 
-        $this->actingAs($this->member)->post(route('organization.appoint'), $payload)->assertForbidden();
-        $this->actingAs($this->president)->post(route('organization.appoint'), $payload)->assertRedirect();
+        $this->actingAs($this->member)->withSession(['auth.password_confirmed_at' => time()])->post(route('organization.appoint'), $payload)->assertForbidden();
+        $this->actingAs($this->president)->withSession(['auth.password_confirmed_at' => time()])->post(route('organization.appoint'), $payload)->assertRedirect();
 
         $this->assertDatabaseHas('role_assignments', ['user_id' => $candidate->id, 'role' => 'vice_president', 'appointed_by' => $this->president->id]);
         $this->assertDatabaseHas('audit_entries', ['event' => 'appointed', 'actor_id' => $this->president->id]);
@@ -152,8 +152,8 @@ class FaktWorkflowTest extends TestCase
         $otherPortfolio = OrgUnit::query()->create(['semester_id' => $this->semester->id, 'type' => 'portfolio', 'name' => 'Pénzügy', 'slug' => 'penzugy']);
         $otherTeam = OrgUnit::query()->create(['semester_id' => $this->semester->id, 'parent_id' => $otherPortfolio->id, 'type' => 'team', 'name' => 'Pénzügy Team', 'slug' => 'penzugy-team']);
 
-        $this->actingAs($this->vicePresident)->post(route('organization.members.assign'), ['user_id' => $this->member->id, 'org_unit_id' => $otherTeam->id])->assertForbidden();
-        $this->actingAs($this->vicePresident)->post(route('organization.members.assign'), ['user_id' => $this->member->id, 'org_unit_id' => $this->team->id])->assertRedirect();
+        $this->actingAs($this->vicePresident)->withSession(['auth.password_confirmed_at' => time()])->post(route('organization.members.assign'), ['user_id' => $this->member->id, 'org_unit_id' => $otherTeam->id])->assertForbidden();
+        $this->actingAs($this->vicePresident)->withSession(['auth.password_confirmed_at' => time()])->post(route('organization.members.assign'), ['user_id' => $this->member->id, 'org_unit_id' => $this->team->id])->assertRedirect();
 
         $this->assertDatabaseHas('team_memberships', ['user_id' => $this->member->id, 'org_unit_id' => $this->team->id, 'semester_id' => $this->semester->id]);
     }
@@ -223,18 +223,20 @@ class FaktWorkflowTest extends TestCase
         $csv = "name,email,member_status,cohort_year\nImport Anna,anna.import@example.hu,active,2026\n";
 
         $this->actingAs($this->president)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->post(route('admin.imports.stage'), ['file' => UploadedFile::fake()->createWithContent('tagok.csv', $csv)])
             ->assertRedirect();
 
         $this->assertDatabaseHas('import_batches', ['status' => 'staged', 'valid_rows' => 1, 'invalid_rows' => 0]);
         $batch = ImportBatch::query()->firstOrFail();
 
-        $this->actingAs($this->president)->post(route('admin.imports.apply', $batch))->assertRedirect();
+        $this->actingAs($this->president)->withSession(['auth.password_confirmed_at' => time()])->post(route('admin.imports.apply', $batch))->assertRedirect();
         $this->assertDatabaseHas('users', ['email' => 'anna.import@example.hu']);
         $this->assertDatabaseHas('member_profiles', ['member_status' => 'active', 'cohort_year' => 2026]);
         $this->assertSame('applied', $batch->refresh()->status);
 
         $this->actingAs($this->president)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->post(route('admin.imports.stage'), ['file' => UploadedFile::fake()->createWithContent('ismet.csv', $csv)])
             ->assertRedirect();
         $this->assertDatabaseHas('import_batches', ['invalid_rows' => 1]);

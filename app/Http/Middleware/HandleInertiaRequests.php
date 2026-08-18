@@ -36,7 +36,16 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         return array_merge(parent::share($request), ['name' => config('app.name'), 'auth' => [
-            'user' => ($nullsafeVariable1 = $request->user()) ? $nullsafeVariable1->loadMissing('profile') : null,
+            'user' => function () use ($request) {
+                $user = $request->user();
+                if (! $user) {
+                    return null;
+                }
+
+                return array_merge($user->only([
+                    'id', 'name', 'email', 'email_verified_at', 'approval_status',
+                ]), ['profile' => $user->profile]);
+            },
             'roles' => fn () => (($nullsafeVariable2 = $request->user()) ? $nullsafeVariable2->activeRoleNames() : null) ?? [],
             'abilities' => fn () => [
                 'isPresident' => (($nullsafeVariable3 = $request->user()) ? $nullsafeVariable3->isPresident() : null) ?? false,

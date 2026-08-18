@@ -91,10 +91,12 @@ class RegistrationTest extends TestCase
         $applicant->profile()->create(['member_status' => 'pending']);
 
         $this->actingAs($member)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->patch(route('admin.registrations.review', $applicant), ['status' => 'approved'])
             ->assertForbidden();
 
         $this->actingAs($president)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->patch(route('admin.registrations.review', $applicant), ['status' => 'approved'])
             ->assertRedirect();
 
@@ -118,10 +120,12 @@ class RegistrationTest extends TestCase
         $applicant->profile()->create(['member_status' => 'pending']);
 
         $this->actingAs($president)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->patch(route('admin.registrations.review', $applicant), ['status' => 'rejected'])
             ->assertSessionHasErrors('decision_note');
 
         $this->actingAs($president)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->patch(route('admin.registrations.review', $applicant), [
                 'status' => 'rejected',
                 'decision_note' => 'A megadott adatok alapján a tagság nem azonosítható.',

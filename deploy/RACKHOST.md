@@ -2,7 +2,7 @@
 
 Ez az útmutató a `nxt02408` cPanel-fiókhoz és az `app.fakt.org.hu` aldomainhez készült. A nyilvános `fakt.org.hu` oldal változatlan marad. A telepíthető csomag PHP 8.3-at és Laravel 13-at igényel.
 
-Az aktuális kiadás önregisztrációt, elnöki fiókjóváhagyást és szigorú vezetői feladatdelegálást tartalmaz. A hozzá tartozó változások: [CHANGELOG-2026-08-18.md](../docs/CHANGELOG-2026-08-18.md). Minden élesítéshez készíts külön másolatot a [DEPLOYMENT-LOG-TEMPLATE.md](DEPLOYMENT-LOG-TEMPLATE.md) fájlból.
+Az aktuális kiadás önregisztrációt, elnöki fiókjóváhagyást, szigorú delegálást és rétegezett biztonsági megerősítést tartalmaz. A legújabb változások: [CHANGELOG-2026-08-18-SECURITY.md](../docs/CHANGELOG-2026-08-18-SECURITY.md), a kötelező biztonsági alapvonal: [SECURITY-HARDENING.md](../docs/SECURITY-HARDENING.md). Minden élesítéshez készíts külön másolatot a [DEPLOYMENT-LOG-TEMPLATE.md](DEPLOYMENT-LOG-TEMPLATE.md) fájlból.
 
 ## Melyik telepítési útvonalat válaszd?
 
@@ -31,7 +31,15 @@ Az alkalmazást ne a GitHub forráskód ZIP-jéből telepítsd. Az nem tartalmaz
 5. Ezt a második ZIP-et töltsd fel a cPanelbe. Kibontva két mappát ad:
    - `fakt-app-core`: Laravel, `vendor/`, konfiguráció és a lefordított assetek;
    - `fakt-app-public`: kizárólag a weben közvetlenül elérhető fájlok.
-6. A csomag tartalmazza még a részletes telepítési útmutatót, a rövid frissítési útmutatót, a változásnaplót és a kitöltendő telepítési naplót. A telepítés megkezdése előtt jegyezd fel a GitHub Actions futás URL-jét és a commit SHA-t.
+6. A csomag mellett található `fakt-cpanel-release.zip.sha256`. A számítógépen futtasd:
+
+```powershell
+$actual = (Get-FileHash .\fakt-cpanel-release.zip -Algorithm SHA256).Hash.ToLower()
+$expected = (Get-Content .\fakt-cpanel-release.zip.sha256).Split(' ')[0].ToLower()
+if ($actual -ne $expected) { throw 'HIBÁS VAGY SÉRÜLT KIADÁSI CSOMAG' }
+```
+
+7. Csak egyező hash esetén folytasd. A csomag tartalmazza a biztonsági kézikönyvet, útmutatókat, változásnaplót és telepítési naplót. Jegyezd fel az Actions URL-t és commit SHA-t.
 
 A Rackhost szerveren nem kell Composer, npm, Node.js vagy Terminal.
 
@@ -51,12 +59,16 @@ Ha az aldomain már létezik, csak ellenőrizd ezeket az értékeket.
 
 1. cPanel → **MySQL Database Wizard**.
 2. Hozz létre külön adatbázist, például `faktapp` néven.
-3. Hozz létre külön adatbázis-felhasználót erős, egyedi jelszóval.
-4. Rendeld a felhasználót az adatbázishoz **All Privileges** jogosultsággal.
-5. Jegyezd fel a teljes, cPanel-előtagos neveket, például:
+3. Hozz létre két külön, erős és egymástól eltérő jelszavú felhasználót:
+   - `faktdeploy`: csak migrációhoz, ideiglenesen **All Privileges**;
+   - `faktruntime`: az alkalmazáshoz csak `SELECT`, `INSERT`, `UPDATE`, `DELETE`.
+4. Jegyezd fel a teljes, cPanel-előtagos neveket, például:
    - adatbázis: `nxt02408_faktapp`;
-   - felhasználó: `nxt02408_faktapp`;
-   - jelszó: a létrehozáskor mentett adatbázisjelszó.
+   - deploy user: `nxt02408_faktdeploy`;
+   - runtime user: `nxt02408_faktruntime`;
+   - jelszavak: kizárólag a jelszókezelőben.
+
+A runtime user soha ne kapjon `DROP`, `ALTER`, `CREATE`, `INDEX`, `FILE`, `GRANT` vagy `ALL PRIVILEGES` jogot. Ez az adatvesztés elleni legfontosabb szerveroldali korlát.
 
 ## 4. Első telepítés: fájlok
 
@@ -80,7 +92,13 @@ APP_DEBUG=false
 APP_URL=https://app.fakt.org.hu
 DB_HOST=127.0.0.1
 SESSION_SECURE_COOKIE=true
+SESSION_ENCRYPT=true
+SESSION_SAME_SITE=lax
+APP_TRUSTED_HOST=app.fakt.org.hu
+SECURITY_REQUIRE_PRIVILEGED_MFA=true
 ```
+
+Az első migrációig a `DB_USERNAME`/`DB_PASSWORD` a deploy user legyen. A migráció után kötelező runtime userre cserélni és újracache-elni a konfigurációt.
 
 4. SMTP 587/STARTTLS esetén használd a `MAIL_SCHEME=smtp` értéket. SMTP 465/implicit TLS esetén `MAIL_SCHEME=smtps` és `MAIL_PORT=465` kell. A cPanel **Connect Devices** oldalán látható érték az irányadó.
 5. A `.env` soha ne kerüljön GitHubra vagy `public_html` alá.
@@ -102,16 +120,16 @@ Minden alábbi parancsnál:
 5. File Managerben ellenőrizd a `/cphome/nxt02408/fakt-deploy.log` végét.
 6. Az ideiglenes cron sort azonnal töröld, és csak ezután add hozzá a következőt.
 
-Futtatókörnyezet ellenőrzése:
-
-```text
-/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/deploy/rackhost-preflight.php >> /cphome/nxt02408/fakt-deploy.log 2>&1
-```
-
 Alkalmazáskulcs létrehozása — csak első telepítéskor:
 
 ```text
 /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan key:generate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
+```
+
+Futtatókörnyezet és titokmentes production-konfiguráció ellenőrzése:
+
+```text
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/deploy/rackhost-preflight.php >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
 
 Adatbázistáblák létrehozása/frissítése:
@@ -119,6 +137,8 @@ Adatbázistáblák létrehozása/frissítése:
 ```text
 /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan migrate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
+
+Ezután a `.env` fájlban cseréld a DB usert `nxt02408_faktruntime` értékre, a deploy usert pedig vedd le az adatbázisról. Csak ezután futtasd a bootstrapot és a production cache-t.
 
 Első elnöki fiók — csak üres, első telepítésnél:
 
@@ -148,10 +168,15 @@ Régi `ea-php74` scheduler sor ne maradjon aktív.
 
 1. Nyisd meg inkognitó ablakban: `https://app.fakt.org.hu/login`.
 2. Jelentkezz be az elnöki fiókkal, és azonnal módosítsd a kezdeti jelszót.
-3. A böngésző konzoljában ne legyen JavaScript hiba; a jelszófrissítés ne adjon 405 hibát.
-4. Teszteld a jelszó-reset emailt, egy védett fájlletöltést, az ICS feedet és a TOTP bekapcsolási képernyőjét.
-5. Töröld a `fakt-deploy.log` fájlt, mert az első ideiglenes jelszót tartalmazhatja.
-6. Készíts új adatbázis- és fájlmentést a működő állapotról.
+3. Azonnal állítsd be és erősítsd meg a TOTP MFA-t, a recovery kódokat offline, biztonságos helyen tárold.
+4. A böngésző konzoljában ne legyen JavaScript hiba; a jelszófrissítés ne adjon 405 hibát.
+5. Teszteld a jelszó-reset emailt, egy védett fájlletöltést, az ICS feedet és a TOTP kihívást.
+6. DevTools/Network alatt ellenőrizd a CSP, `nosniff`, `DENY`, `no-referrer` és HSTS fejléceket.
+7. Ellenőrizd, hogy `/.env`, `/artisan`, `/composer.json` és `/.git/config` nem érhető el.
+8. Töröld a `fakt-deploy.log` fájlt, mert az első ideiglenes jelszót tartalmazhatja.
+9. Készíts új adatbázis- és fájlmentést a működő állapotról.
+
+A teljes támadási ellenőrzőlista a csomag `SECURITY-HARDENING.md` fájljában van. Ne futtass romboló SQL-t valódi production táblán.
 
 ### Jóváhagyásos regisztráció ellenőrzése
 

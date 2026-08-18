@@ -8,7 +8,7 @@
         <link rel="manifest" href="/manifest.webmanifest">
 
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
-        <script>
+        <script nonce="{{ $cspNonce ?? '' }}">
             (function() {
                 const appearance = '{{ $appearance ?? "system" }}';
 

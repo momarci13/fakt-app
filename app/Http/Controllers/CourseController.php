@@ -84,9 +84,9 @@ class CourseController extends Controller
         abort_unless(AccessScope::managesCourses($request->user()), 403);
         $semester = Semester::activeOrFail();
         $data = $request->validate([
-            'title' => ['required', 'string', 'max:180'], 'category' => ['required', 'string', 'max:100'], 'description' => ['nullable', 'string', 'max:4000'],
+            'title' => ['required', 'string', 'max:180'], 'category' => ['required', 'string', 'max:100', 'regex:/^[\pL\pN][\pL\pN .&()\-]{0,99}$/u'], 'description' => ['nullable', 'string', 'max:4000'],
             'instructor_name' => ['required', 'string', 'max:160'], 'instructor_email' => ['nullable', 'email', 'max:255'], 'capacity' => ['required', 'integer', 'between:1,100'],
-            'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at'], 'location' => ['nullable', 'string', 'max:160'], 'recurrence_rule' => ['nullable', 'string', 'max:255'],
+            'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at'], 'location' => ['nullable', 'string', 'max:160'], 'recurrence_rule' => ['nullable', 'string', 'max:255', 'regex:/^FREQ=(?:DAILY|WEEKLY|MONTHLY)(?:;INTERVAL=[1-9][0-9]?)?(?:;COUNT=[1-9][0-9]{0,2})?$/D'],
         ]);
         $course = CourseOffering::query()->create(array_merge($data, ['semester_id' => $semester->id, 'created_by' => $request->user()->id, 'status' => 'published']));
         Event::query()->create(['semester_id' => $semester->id, 'course_offering_id' => $course->id, 'organizer_id' => $request->user()->id, 'title' => $course->title, 'type' => 'course', 'starts_at' => $course->starts_at, 'ends_at' => $course->ends_at, 'location' => $course->location, 'visibility' => 'scope', 'obligation' => 'required', 'description' => $course->description]);
@@ -98,6 +98,7 @@ class CourseController extends Controller
     public function review(Request $request, EnrollmentRequest $enrollment): RedirectResponse
     {
         abort_unless(AccessScope::managesCourses($request->user()), 403);
+        abort_unless((int) $enrollment->course->semester_id === (int) Semester::activeOrFail()->id, 404);
         $data = $request->validate(['status' => ['required', Rule::in(['approved', 'rejected', 'waitlisted'])], 'decision_note' => ['nullable', 'string', 'max:1000']]);
         $course = $enrollment->course;
         if ($data['status'] === 'approved' && $course->enrollments()->where('status', 'approved')->whereKeyNot($enrollment->id)->count() >= $course->capacity) {

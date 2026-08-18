@@ -33,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
         Date::use(CarbonImmutable::class);
 
         Password::defaults(fn (): ?Password => app()->isProduction()
-            ? Password::min(12)
+            ? Password::min(15)
                 ->mixedCase()
                 ->letters()
                 ->numbers()

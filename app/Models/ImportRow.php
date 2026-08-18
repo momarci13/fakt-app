@@ -9,7 +9,15 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 /** @property array<string, mixed> $payload */
 class ImportRow extends Model
 {
-    protected $guarded = [];
+    protected $fillable = [
+        'import_batch_id',
+        'row_number',
+        'payload',
+        'errors',
+        'status',
+        'created_record_type',
+        'created_record_id',
+    ];
 
     protected $casts = ['payload' => 'array', 'errors' => 'array'];
 

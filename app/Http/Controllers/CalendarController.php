@@ -35,10 +35,10 @@ class CalendarController extends Controller
         abort_unless($request->user()->isLeader(), 403);
         $semester = Semester::activeOrFail();
         $data = $request->validate([
-            'title' => ['required', 'string', 'max:160'], 'type' => ['required', 'string', 'max:50'],
+            'title' => ['required', 'string', 'max:160'], 'type' => ['required', Rule::in(['assembly', 'community', 'professional', 'team', 'project', 'course', 'workshop', 'alumni'])],
             'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at'], 'location' => ['nullable', 'string', 'max:160'],
             'visibility' => ['required', Rule::in(['company', 'members', 'scope', 'alumni'])], 'obligation' => ['required', Rule::in(['required', 'optional'])],
-            'org_unit_id' => ['nullable', 'exists:org_units,id'], 'project_id' => ['nullable', 'exists:projects,id'], 'description' => ['nullable', 'string', 'max:4000'],
+            'org_unit_id' => ['nullable', Rule::exists('org_units', 'id')->where('semester_id', $semester->id)], 'project_id' => ['nullable', Rule::exists('projects', 'id')->where('semester_id', $semester->id)], 'description' => ['nullable', 'string', 'max:4000'],
         ]);
         if (! $request->user()->isPresident() && ! AccessScope::managesUnit($request->user(), $data['org_unit_id'] ?? null) && ! AccessScope::managesProject($request->user(), $data['project_id'] ?? null)) {
             abort(403);
@@ -52,6 +52,7 @@ class CalendarController extends Controller
 
     public function rsvp(Request $request, Event $event): RedirectResponse
     {
+        abort_unless(PersonalCalendar::events($request->user())->contains('id', $event->id), 404);
         $data = $request->validate(['rsvp_status' => ['required', Rule::in(['attending', 'not_attending', 'excused_requested'])], 'excuse_reason' => ['nullable', 'required_if:rsvp_status,excused_requested', 'string', 'max:2000']]);
         $attendance = Attendance::query()->updateOrCreate(['event_id' => $event->id, 'user_id' => $request->user()->id], $data);
         Audit::record($attendance, 'rsvp_updated');
@@ -63,6 +64,8 @@ class CalendarController extends Controller
     {
         abort_unless((int) $event->organizer_id === (int) $request->user()->id || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
         $data = $request->validate(['user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')], 'final_status' => ['required', Rule::in(['present', 'absent', 'excused'])]]);
+        $participant = User::query()->findOrFail($data['user_id']);
+        abort_unless(PersonalCalendar::events($participant)->contains('id', $event->id), 422, 'A felhasználó nem résztvevője az eseménynek.');
         $attendance = Attendance::query()->updateOrCreate(['event_id' => $event->id, 'user_id' => $data['user_id']], ['final_status' => $data['final_status'], 'finalized_by' => $request->user()->id, 'finalized_at' => now()]);
         Audit::record($attendance, 'attendance_finalized');
 
@@ -72,6 +75,7 @@ class CalendarController extends Controller
     public function updateMeeting(Request $request, Event $event): RedirectResponse
     {
         abort_unless($event->type === 'assembly', 422);
+        abort_unless((int) $event->semester_id === (int) Semester::activeOrFail()->id, 404);
         abort_unless((int) $event->organizer_id === (int) $request->user()->id || $request->user()->isPresident() || AccessScope::managesUnit($request->user(), $event->org_unit_id), 403);
         $data = $request->validate([
             'agenda' => ['nullable', 'string', 'max:10000'],

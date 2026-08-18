@@ -28,7 +28,7 @@ trait ProfileValidationRules
      */
     protected function nameRules(): array
     {
-        return ['required', 'string', 'max:255'];
+        return ['required', 'string', 'min:2', 'max:150', 'regex:/^[\pL\pM][\pL\pM .\x27\-]{1,149}$/u'];
     }
 
     /**

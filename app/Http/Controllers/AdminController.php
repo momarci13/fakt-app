@@ -13,6 +13,9 @@ use App\Models\Semester;
 use App\Models\User;
 use App\Notifications\FaktNotification;
 use App\Support\Audit;
+use App\Support\SecureUpload;
+use App\Support\UntrustedInput;
+use App\Support\SessionSecurity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -54,10 +57,15 @@ class AdminController extends Controller
     public function invite(Request $request): RedirectResponse
     {
         $this->authorizePresident($request);
-        $data = $request->validate(['name' => ['required', 'string', 'max:150'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'member_status' => ['required', Rule::in(['active', 'senior', 'alumni'])], 'cohort_year' => ['nullable', 'integer', 'between:2008,2100']]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:150', 'regex:/^[\pL\pM][\pL\pM .\x27\-]{1,149}$/u'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'member_status' => ['required', Rule::in(['active', 'senior', 'alumni'])],
+            'cohort_year' => ['nullable', 'integer', 'between:2008,2100'],
+        ]);
         $user = User::query()->create([
-            'name' => $data['name'],
-            'email' => $data['email'],
+            'name' => trim($data['name']),
+            'email' => Str::lower(trim($data['email'])),
             'password' => Hash::make(Str::random(64)),
             'invited_by' => $request->user()->id,
             'invited_at' => now(),
@@ -76,11 +84,12 @@ class AdminController extends Controller
     public function stageMemberImport(Request $request): RedirectResponse
     {
         $this->authorizePresident($request);
-        $request->validate(['file' => ['required', 'file', 'max:10240', 'mimes:csv,txt,xlsx']]);
+        $request->validate(['file' => ['required', 'file', 'max:10240', 'extensions:csv,txt,xlsx']]);
         $file = $request->file('file');
         abort_unless($file !== null, 422);
+        $fileMetadata = SecureUpload::validate($file, ['csv', 'txt', 'xlsx']);
 
-        $rows = strtolower($file->getClientOriginalExtension()) === 'xlsx'
+        $rows = $fileMetadata['extension'] === 'xlsx'
             ? $this->readXlsx($file->getRealPath())
             : $this->readCsv($file->getRealPath());
 
@@ -88,12 +97,15 @@ class AdminController extends Controller
         $headers = array_map(fn ($value) => $this->normaliseHeader((string) $value), array_shift($rows));
         $required = ['name', 'email', 'member_status'];
         abort_unless(array_diff($required, $headers) === [], 422, 'Kötelező oszlopok: name, email, member_status.');
+        abort_unless(count($headers) <= 4 && count(array_unique($headers)) === count($headers), 422, 'Duplikált vagy túl sok importoszlop.');
+        abort_unless(array_diff($headers, ['name', 'email', 'member_status', 'cohort_year']) === [], 422, 'Ismeretlen importoszlop.');
+        abort_unless(count($rows) <= 1000, 422, 'Egy import legfeljebb 1000 adatsort tartalmazhat.');
 
         $seenEmails = [];
-        $batch = DB::transaction(function () use ($request, $file, $rows, $headers, &$seenEmails): ImportBatch {
+        $batch = DB::transaction(function () use ($request, $fileMetadata, $rows, $headers, &$seenEmails): ImportBatch {
             $batch = ImportBatch::query()->create([
                 'uploaded_by' => $request->user()->id,
-                'original_name' => $file->getClientOriginalName(),
+                'original_name' => $fileMetadata['original_name'],
                 'mapping' => array_combine($headers, $headers),
             ]);
 
@@ -111,10 +123,22 @@ class AdminController extends Controller
                 $email = strtolower((string) ($payload['email'] ?? ''));
                 $errors = [];
 
-                if (trim((string) ($payload['name'] ?? '')) === '') {
-                    $errors[] = 'A név kötelező.';
+                foreach ($payload as $key => $value) {
+                    if (is_string($value) && UntrustedInput::stringViolation($value, (string) $key)) {
+                        $errors[] = 'Tiltott vagy hibásan kódolt adat.';
+                        break;
+                    }
+                    if (is_string($value) && preg_match('/^[=+\-@]/', ltrim($value)) === 1) {
+                        $errors[] = 'Táblázatképlet nem importálható.';
+                        break;
+                    }
                 }
-                if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+
+                $name = trim((string) ($payload['name'] ?? ''));
+                if ($name === '' || mb_strlen($name) > 150) {
+                    $errors[] = 'A név kötelező és legfeljebb 150 karakter lehet.';
+                }
+                if (strlen($email) > 255 || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
                     $errors[] = 'Érvénytelen email cím.';
                 }
                 if (! in_array($payload['member_status'], ['active', 'passive', 'senior', 'alumni'], true)) {
@@ -208,7 +232,7 @@ class AdminController extends Controller
         $handle = fopen($path, 'rb');
         abort_if($handle === false, 422, 'A fájl nem olvasható.');
         $rows = [];
-        while (($row = fgetcsv($handle, 0, ',')) !== false) {
+        while (($row = fgetcsv($handle, 65536, ',')) !== false) {
             if (count($row) === 1 && strpos((string) $row[0], ';') !== false) {
                 $row = str_getcsv((string) $row[0], ';');
             }
@@ -227,7 +251,8 @@ class AdminController extends Controller
         abort_unless($zip->open($path) === true, 422, 'Az XLSX fájl nem nyitható meg.');
         $shared = [];
         if (($xml = $zip->getFromName('xl/sharedStrings.xml')) !== false) {
-            $document = simplexml_load_string($xml);
+            abort_if(stripos($xml, '<!DOCTYPE') !== false || stripos($xml, '<!ENTITY') !== false, 422, 'Az XLSX XML deklarációja tiltott.');
+            $document = simplexml_load_string($xml, \SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
             abort_if($document === false, 422, 'Az XLSX szövegtáblája sérült.');
             foreach ($document->si as $item) {
                 $shared[] = (string) ($item->t ?? $item->r->t ?? '');
@@ -236,12 +261,15 @@ class AdminController extends Controller
         $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
         $zip->close();
         abort_if($sheet === false, 422, 'Az XLSX első munkalapja nem olvasható.');
-        $document = simplexml_load_string($sheet);
+        abort_if(stripos($sheet, '<!DOCTYPE') !== false || stripos($sheet, '<!ENTITY') !== false, 422, 'Az XLSX XML deklarációja tiltott.');
+        $document = simplexml_load_string($sheet, \SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
         abort_if($document === false, 422, 'Az XLSX első munkalapja sérült.');
         $rows = [];
         foreach ($document->sheetData->row as $row) {
+            abort_if(count($rows) >= 1001, 422, 'Egy import legfeljebb 1000 adatsort és egy fejlécet tartalmazhat.');
             $values = [];
             foreach ($row->c as $cell) {
+                abort_if(count($values) >= 10, 422, 'Az XLSX túl sok oszlopot tartalmaz.');
                 $reference = (string) $cell['r'];
                 preg_match('/^[A-Z]+/', $reference, $match);
                 $column = 0;
@@ -334,6 +362,8 @@ class AdminController extends Controller
     public function reviewMemberRequest(Request $request, MemberRequest $memberRequest): RedirectResponse
     {
         $this->authorizePresident($request);
+        abort_unless((int) $memberRequest->semester_id === (int) Semester::activeOrFail()->id, 404);
+        abort_unless($memberRequest->status === 'pending', 422, 'Ez a kérelem már el lett bírálva.');
         $data = $request->validate(['status' => ['required', Rule::in(['approved', 'rejected'])], 'decision_note' => ['required', 'string', 'max:2000']]);
         $before = $memberRequest->toArray();
         $memberRequest->update(array_merge($data, ['reviewed_by' => $request->user()->id, 'reviewed_at' => now()]));
@@ -389,6 +419,7 @@ class AdminController extends Controller
                     'rejection_reason' => $data['decision_note'],
                 ]);
                 $user->profile()->update(['member_status' => 'rejected']);
+                SessionSecurity::revokeFor($user);
             }
         });
 

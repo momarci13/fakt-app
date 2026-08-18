@@ -172,7 +172,7 @@ const date = (value: string) =>
                         ><input
                             type="file"
                             name="evidence"
-                            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                            accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
                             class="mt-2 block w-full text-sm"
                         />
                     </div>

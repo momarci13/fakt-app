@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Event;
+use App\Models\Semester;
 use App\Support\Audit;
+use App\Support\SecureUpload;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -36,29 +38,35 @@ class DocumentController extends Controller
     public function store(Request $request): RedirectResponse
     {
         abort_unless($request->user()->isLeader(), 403);
+        $semester = Semester::activeOrFail();
         $data = $request->validate([
             'category' => ['required', Rule::in(['guidebook', 'minutes', 'evidence', 'other'])],
             'visibility' => ['required', Rule::in(['members', 'alumni', 'all'])],
-            'event_id' => ['nullable', 'exists:events,id'],
-            'file' => ['required', 'file', 'max:10240', 'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg'],
+            'event_id' => ['nullable', Rule::exists('events', 'id')->where('semester_id', $semester->id)],
+            'file' => ['required', 'file', 'max:10240', 'extensions:pdf,docx,xlsx,png,jpg,jpeg'],
         ]);
         $file = $request->file('file');
         abort_unless($file !== null, 422);
-        $allowedMimes = [
-            'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'image/png', 'image/jpeg',
-        ];
-        abort_unless(in_array($file->getMimeType(), $allowedMimes, true), 422, 'A fájl valódi MIME-típusa nem engedélyezett.');
+        $metadata = SecureUpload::validate($file, ['pdf', 'docx', 'xlsx', 'png', 'jpg', 'jpeg']);
+
+        if (! empty($data['event_id'])) {
+            $event = Event::query()->findOrFail($data['event_id']);
+            abort_unless(
+                (int) $event->organizer_id === (int) $request->user()->id
+                || $request->user()->isPresident()
+                || \App\Support\AccessScope::managesUnit($request->user(), $event->org_unit_id),
+                403
+            );
+        }
 
         $path = $file->store('documents/'.now()->format('Y/m'), 'local');
         $document = Document::query()->create([
             'uploaded_by' => $request->user()->id,
             'category' => $data['category'],
-            'original_name' => $file->getClientOriginalName(),
+            'original_name' => $metadata['original_name'],
             'path' => $path,
-            'mime_type' => $file->getMimeType(),
-            'size' => $file->getSize(),
+            'mime_type' => $metadata['mime'],
+            'size' => $metadata['size'],
             'visibility' => $data['visibility'],
         ]);
         if (! empty($data['event_id'])) {
@@ -79,6 +87,11 @@ class DocumentController extends Controller
         abort_unless($allowed, 403);
         abort_unless(Storage::disk('local')->exists($document->path), 404);
 
-        return Storage::disk('local')->download($document->path, $document->original_name, ['Content-Type' => $document->mime_type]);
+        return Storage::disk('local')->download($document->path, $document->original_name, [
+            'Content-Type' => $document->mime_type,
+            'Cache-Control' => 'private, no-store',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }

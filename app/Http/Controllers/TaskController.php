@@ -52,10 +52,13 @@ class TaskController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:180'], 'description' => ['nullable', 'string', 'max:4000'],
             'priority' => ['required', Rule::in(['low', 'normal', 'high', 'urgent'])], 'due_at' => ['nullable', 'date'],
-            'org_unit_id' => ['nullable', 'exists:org_units,id'], 'project_id' => ['nullable', 'exists:projects,id'],
-            'assignee_ids' => ['required', 'array', 'min:1'], 'assignee_ids.*' => ['exists:users,id'], 'parent_id' => ['nullable', 'exists:tasks,id'],
+            'org_unit_id' => ['nullable', Rule::exists('org_units', 'id')->where('semester_id', $semester->id)], 'project_id' => ['nullable', Rule::exists('projects', 'id')->where('semester_id', $semester->id)],
+            'assignee_ids' => ['required', 'array', 'min:1', 'max:50'], 'assignee_ids.*' => ['integer', 'distinct', 'exists:users,id'], 'parent_id' => ['nullable', Rule::exists('tasks', 'id')->where('semester_id', $semester->id)],
         ]);
         $actor = $request->user();
+        if (($data['parent_id'] ?? null) && ! Task::query()->visibleTo($actor)->whereKey($data['parent_id'])->exists()) {
+            abort(403);
+        }
         if (($data['org_unit_id'] ?? null) && ! AccessScope::managesUnit($actor, $data['org_unit_id'])) {
             abort(403);
         }
@@ -76,6 +79,7 @@ class TaskController extends Controller
     public function update(Request $request, Task $task): RedirectResponse
     {
         $actor = $request->user();
+        abort_unless((int) $task->semester_id === (int) Semester::activeOrFail()->id, 404);
         $isAssignee = $task->assignees()->where('users.id', $actor->id)->exists();
         abort_unless($actor->isPresident() || (int) $task->created_by === (int) $actor->id || $isAssignee || AccessScope::managesUnit($actor, $task->org_unit_id) || AccessScope::managesProject($actor, $task->project_id), 403);
         $data = $request->validate(['status' => ['required', Rule::in(['todo', 'in_progress', 'review', 'done', 'cancelled'])]]);
@@ -88,6 +92,7 @@ class TaskController extends Controller
 
     public function comment(Request $request, Task $task): RedirectResponse
     {
+        abort_unless((int) $task->semester_id === (int) Semester::activeOrFail()->id, 404);
         abort_unless(Task::query()->visibleTo($request->user())->whereKey($task->id)->exists(), 403);
         $data = $request->validate(['body' => ['required', 'string', 'max:3000']]);
         $task->comments()->create(array_merge($data, ['user_id' => $request->user()->id]));

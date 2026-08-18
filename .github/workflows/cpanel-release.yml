@@ -17,17 +17,19 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
           tools: composer:v2
           coverage: none
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -50,6 +52,7 @@ jobs:
           npm run lint:check
           npm run format:check
           npm run types:check
+          npm audit --audit-level=high
           npm run build
 
       - name: Remove development dependencies
@@ -76,14 +79,29 @@ jobs:
           cp deploy/RACKHOST-QUICK-DEPLOY.md release/DEPLOYMENT-GUIDE.md
           cp deploy/RACKHOST.md release/DEPLOYMENT-GUIDE-DETAILED.md
           cp deploy/DEPLOYMENT-LOG-TEMPLATE.md release/DEPLOYMENT-LOG-TEMPLATE.md
-          cp docs/CHANGELOG-2026-08-18.md release/CHANGELOG.md
+          cp docs/CHANGELOG-2026-08-18-SECURITY.md release/CHANGELOG.md
+          cp docs/SECURITY-HARDENING.md release/SECURITY-HARDENING.md
           cd release
-          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md
+          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md SECURITY-HARDENING.md
+          sha256sum fakt-cpanel-release.zip > fakt-cpanel-release.zip.sha256
+
+      - name: Verify cPanel package contents
+        run: |
+          unzip -t release/fakt-cpanel-release.zip
+          unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-core/vendor/autoload.php'
+          unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-public/index.php'
+          unzip -l release/fakt-cpanel-release.zip | grep -q 'SECURITY-HARDENING.md'
+          if unzip -l release/fakt-cpanel-release.zip | grep -Eq 'fakt-app-core/(\.env$|node_modules/|tests/)'; then
+            echo 'Forbidden development or secret file found in release package.' >&2
+            exit 1
+          fi
 
       - name: Upload cPanel package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: fakt-cpanel-release
-          path: release/fakt-cpanel-release.zip
+          path: |
+            release/fakt-cpanel-release.zip
+            release/fakt-cpanel-release.zip.sha256
           if-no-files-found: error
           retention-days: 30

@@ -1,13 +1,14 @@
-# Rackhost PHP 8.3 frissítés — jóváhagyásos regisztrációs kiadás
+# Rackhost PHP 7.4 → 8.3 biztonsági frissítés — rövid segédlet
 
-Ezt használd, ha az `app.fakt.org.hu` címen már van működő alkalmazás vagy megőrzendő adatbázis. A kiadás PHP 8.3/Laravel 13 mellett önregisztrációt, elnöki jóváhagyást és szigorú feladatdelegálást vezet be. A sorrendet tartsd be, és közben töltsd a `DEPLOYMENT-LOG-TEMPLATE.md` másolatát.
+Ezt használd, ha az `app.fakt.org.hu` címen PHP 7.4-es alkalmazás, bármilyen megőrzendő adatbázis vagy korábbi `.env` van. A kiadás PHP 8.3/Laravel 13 mellett önregisztrációt, elnöki jóváhagyást, szigorú delegálást és új biztonsági alapvonalat vezet be. A sorrendet tartsd be, és közben töltsd a `DEPLOYMENT-LOG-TEMPLATE.md` másolatát. Ha az alkalmazást még soha nem telepítetted és nincs megőrzendő adat, a részletes útmutató első telepítési fejezeteit használd.
 
 ## 1. Töltsd le a helyes csomagot
 
 1. GitHub → **Actions → cPanel release package**.
 2. Csak zöld, sikeres futás artifactját töltsd le.
 3. Csomagold ki az artifactot, majd a benne lévő `fakt-cpanel-release.zip` fájlt is.
-4. Ellenőrizd, hogy a csomagban megtalálható a `CHANGELOG.md`; ebből azonosítható a megfelelő kiadás.
+4. PowerShellben hasonlítsd össze a ZIP SHA-256 értékét a mellékelt `.sha256` fájllal (a részletes útmutató parancsával).
+5. Ellenőrizd, hogy a csomagban megtalálható a `CHANGELOG.md` és `SECURITY-HARDENING.md`.
 
 ## 2. Készíts teljes mentést
 
@@ -31,11 +32,20 @@ Mentés nélkül ne folytasd.
    - `MAIL_SCHEME=smtp` 587-es porthoz, vagy `smtps` 465-ös porthoz;
    - `APP_ENV=production`, `APP_DEBUG=false`;
    - az eredeti `APP_KEY` változatlan marad.
+   - `APP_TRUSTED_HOST=app.fakt.org.hu`, `SECURITY_REQUIRE_PRIVILEGED_MFA=true`;
+   - `SESSION_LIFETIME=60`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, `SESSION_SAME_SITE=lax`.
 5. Másold át a régi `storage/app/private` **tartalmát** az új core azonos mappájába.
 6. Az új `storage` és `bootstrap/cache` jogosultsága legyen `0755`, szükség esetén `0775`, de soha ne `0777`.
 7. Ne másold át a régi `vendor`, `bootstrap/cache` vagy `public/build` tartalmát az új kiadásba.
 
-## 4. Ellenőrizd az új core-t még az átváltás előtt
+## 4. Állíts be külön migrációs adatbázis-usert
+
+1. A jelenlegi PHP 7.4 rendszer adatbázis-userét ne módosítsd.
+2. Hozz létre `nxt02408_faktdeploy` usert ideiglenes All Privileges joggal.
+3. Hozz létre `nxt02408_faktruntime` usert kizárólag `SELECT`, `INSERT`, `UPDATE`, `DELETE` joggal.
+4. A `fakt-app-core-next/.env` először a deploy usert használja. A két jelszó különböző legyen.
+
+## 5. Ellenőrizd az új core-t még az átváltás előtt
 
 Ideiglenes **Once Per Minute** cron:
 
@@ -45,22 +55,22 @@ Ideiglenes **Once Per Minute** cron:
 
 Várj egy percet, ellenőrizd a naplót, majd töröld a cron sort. Csak `[OK]` eredménnyel folytasd.
 
-## 5. Kapcsold maintenance módba az új kiadást
+## 6. Kapcsold maintenance módba az új kiadást
 
 Ideiglenes cron:
 
 ```text
-/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core-next/artisan down --secret=FAKT-frissites-2026 >> /cphome/nxt02408/fakt-deploy.log 2>&1
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core-next/artisan down --secret=CSERELD-LE-64-VELETLEN-KARAKTERRE >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
 
 Várj egy percet, ellenőrizd a naplót, majd töröld a cron sort. A secretet saját, nehezen kitalálható értékre cserélheted.
 
-## 6. Állítsd le a régi schedulert és válts PHP 8.3-ra
+## 7. Állítsd le a régi schedulert és válts PHP 8.3-ra
 
 1. Töröld vagy ideiglenesen tiltsd le az állandó `ea-php74 ... schedule:run` cron sort.
 2. **MultiPHP Manager** → csak `app.fakt.org.hu` → **PHP 8.3** → **Apply**.
 
-## 7. Cseréld fel a mappákat
+## 8. Cseréld fel a mappákat
 
 File Managerben:
 
@@ -70,12 +80,12 @@ File Managerben:
 4. Mozgasd a `fakt-app-public-next` mappát `/cphome/nxt02408/public_html/fakt-app` helyre.
 5. Ellenőrizd, hogy az új public mappában közvetlenül ott van az `index.php`, `.htaccess`, `build` és `manifest.webmanifest`.
 
-## 8. Futtasd a frissítést
+## 9. Futtasd a migrációt
 
 Ideiglenes **Once Per Minute** cron:
 
 ```text
-/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan migrate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1 && /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan optimize:clear >> /cphome/nxt02408/fakt-deploy.log 2>&1 && /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan optimize >> /cphome/nxt02408/fakt-deploy.log 2>&1 && /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan up >> /cphome/nxt02408/fakt-deploy.log 2>&1
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan migrate --force >> /cphome/nxt02408/fakt-deploy.log 2>&1
 ```
 
 Várj 1–2 percet. A naplóban nem lehet `ERROR`, `SQLSTATE`, `Class not found` vagy permission hiba. Ezután azonnal töröld az ideiglenes cron sort.
@@ -88,7 +98,13 @@ A migrációk között sikeresen szerepelnie kell ennek:
 
 A korábbi fiókok `approved` állapotban maradnak. Ne módosítsd ezt kézzel phpMyAdminban.
 
-## 9. Hozd létre az új állandó cront
+Ezután a core `.env` DB hitelesítőadatait állítsd a runtime userre, vedd le a deploy usert az adatbázisról, majd külön ideiglenes cronnal futtasd:
+
+```text
+/usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan optimize:clear >> /cphome/nxt02408/fakt-deploy.log 2>&1 && /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan optimize >> /cphome/nxt02408/fakt-deploy.log 2>&1 && /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan up >> /cphome/nxt02408/fakt-deploy.log 2>&1
+```
+
+## 10. Hozd létre az új állandó cront
 
 **Once Per Minute**:
 
@@ -98,7 +114,7 @@ A korábbi fiókok `approved` állapotban maradnak. Ne módosítsd ezt kézzel p
 
 Pontosan egy scheduler cron maradjon.
 
-## 10. Ellenőrizd a működést
+## 11. Ellenőrizd a működést
 
 1. Inkognitó ablak: `https://app.fakt.org.hu/login`.
 2. Belépés, dashboard, jelszófrissítési oldal.
@@ -108,6 +124,9 @@ Pontosan egy scheduler cron maradjon.
 6. Nyisd meg a `/register` oldalt, hozz létre tesztkérelmet, és ellenőrizd, hogy jóváhagyás előtt nem lehet belépni.
 7. Elnökként bíráld el a kérelmet az Admin oldalon, és ellenőrizd az emailt.
 8. Ellenőrizd a feladatoldalon az Elnök → Alelnök/Projektvezető → Teamvezető → Teamtag felelőslistákat.
+9. Elnökként állítsd be és erősítsd meg a TOTP MFA-t; productionben enélkül a vezetői felület blokkolt.
+10. Network panelen ellenőrizd a biztonsági fejléceket, majd igazold, hogy `.env`, `artisan` és Git fájl nem publikus.
+11. cPanel MySQL-ben ellenőrizd: az alkalmazáshoz már csak a runtime user kapcsolódik, DDL jog nélkül.
 
 Ha minden rendben, 24–48 óra után törölheted a `fakt-app-core-backup` és `public_html/fakt-app-backup` mappát. A biztonsági mentést tartsd meg a megőrzési szabály szerint.
 

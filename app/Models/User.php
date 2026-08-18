@@ -58,6 +58,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'two_factor_secret',
         'two_factor_recovery_codes',
         'remember_token',
+        'calendar_token',
     ];
 
     /**

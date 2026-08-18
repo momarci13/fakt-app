@@ -12,7 +12,7 @@ Ez az ág a Rackhost PHP 8.3-as cPanel környezetéhez készült:
 - adatbázis-alapú queue és cPanel cron;
 - SSH, szerveroldali Composer és szerveroldali Node.js nélküli telepítés GitHub Actions artifactból.
 
-A futtatókörnyezet és a kiadásbiztonság részletei: [docs/RUNTIME_SECURITY.md](docs/RUNTIME_SECURITY.md).
+A futtatókörnyezet részletei: [docs/RUNTIME_SECURITY.md](docs/RUNTIME_SECURITY.md). A fenyegetési modell, hitelesítési-, input-, feltöltési-, adatbázis- és incidenskezelési alapvonal: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md).
 
 ## Fő modulok
 
@@ -121,7 +121,7 @@ Minden élesítéshez töltsd ki a [telepítési napló sablonját](deploy/DEPLO
 
 ## Biztonság és adatmegőrzés
 
-Az alkalmazás publikus regisztrációt enged, de az új fiók az Elnök naplózott jóváhagyásáig nem fér hozzá a belső felülethez, szervezeti listákhoz vagy ICS-feedhez. Email-ellenőrzést, rate limitinget, modell-szintű jelszóhash-t, jelszó-resetet és opcionális TOTP MFA-t használ. A mellékletek privát tárhelyen vannak; letöltésük jogosultság-ellenőrzött, a méretlimit 10 MB, futtatható fájl nem tölthető fel.
+Az alkalmazás publikus regisztrációt enged, de az új fiók az Elnök naplózott jóváhagyásáig nem fér hozzá a belső felülethez, szervezeti listákhoz vagy ICS-feedhez. Email-ellenőrzést, rétegezett rate limitinget, 15 karakteres minimum jelszót, session-visszavonást és TOTP MFA-t használ; productionben minden vezetőnek kötelező az MFA. A központi input tripwire mellett minden rekord félév- és hatókörvizsgálatot kap, az SQL paraméterezett, az éles runtime DB usernek pedig csak DML joga lehet. A mellékletek privát tárhelyen vannak; szerveroldali MIME-, tartalom-, archívum- és aktívtartalom-ellenőrzés után, jogosultság-ellenőrzött útvonalon tölthetők le.
 
 Az ütemezett `fakt:retention` parancs a konfigurált 12/24 hónapos részletes adatmegőrzést hajtja végre. A kurzus-, tisztség- és diplomaeredmények hosszú távon megmaradnak. A végleges adatkezelési szabályzatot és megőrzési időket éles indulás előtt a FAKT-nak jóvá kell hagynia.
 
@@ -135,4 +135,6 @@ Az ütemezett `fakt:retention` parancs a konfigurált 12/24 hónapos részletes 
 - `docs/PERMISSIONS.md` – jogosultsági mátrix;
 - `docs/IMPORT.md` – importformátum;
 - `.github/workflows/cpanel-release.yml` – SSH nélküli telepítési csomag.
-- `docs/CHANGELOG-2026-08-18.md` – a jóváhagyásos regisztrációs kiadás részletes változásnaplója.
+- `docs/CHANGELOG-2026-08-18.md` – a jóváhagyásos regisztrációs kiadás változásnaplója;
+- `docs/CHANGELOG-2026-08-18-SECURITY.md` – a legújabb biztonsági kiadás változásnaplója;
+- `docs/SECURITY-HARDENING.md` – kötelező production biztonsági és incidenskezelési alapvonal.

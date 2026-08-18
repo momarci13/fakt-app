@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -22,7 +23,7 @@ class AlumniController extends Controller
 
     public function requestMentor(Request $request): RedirectResponse
     {
-        $data = $request->validate(['mentor_id' => ['required', 'exists:users,id', 'different:'.'mentee_id'], 'focus' => ['required', 'string', 'max:500']]);
+        $data = $request->validate(['mentor_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')], 'focus' => ['required', 'string', 'max:500']]);
         $mentor = User::query()->whereKey($data['mentor_id'])->where('approval_status', 'approved')->whereHas('profile', fn ($q) => $q->where('member_status', 'alumni')->where('mentor_available', true)->where('alumni_visible', true))->firstOrFail();
         $mentorship = Mentorship::query()->updateOrCreate(['mentor_id' => $mentor->id, 'mentee_id' => $request->user()->id], ['status' => 'proposed', 'focus' => $data['focus']]);
         Audit::record($mentorship, 'mentorship_requested');

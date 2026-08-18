@@ -40,12 +40,19 @@ class OrganizationController extends Controller
         $semester = Semester::activeOrFail();
         $data = $request->validate([
             'user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
-            'org_unit_id' => ['nullable', 'exists:org_units,id'],
+            'org_unit_id' => ['required', Rule::exists('org_units', 'id')->where('semester_id', $semester->id)],
             'role' => ['required', Rule::in(['vice_president', 'team_leader'])],
             'note' => ['nullable', 'string', 'max:1000'],
         ]);
 
         $actor = $request->user();
+        $unit = OrgUnit::query()->findOrFail($data['org_unit_id']);
+        abort_unless(
+            ($data['role'] === 'vice_president' && $unit->type === 'portfolio')
+            || ($data['role'] === 'team_leader' && $unit->type === 'team'),
+            422,
+            'A szerepkörhöz nem megfelelő szervezeti egység tartozik.'
+        );
         if ($data['role'] === 'vice_president' && ! $actor->isPresident()) {
             abort(403);
         }
@@ -62,6 +69,7 @@ class OrganizationController extends Controller
     public function revoke(Request $request, RoleAssignment $roleAssignment): RedirectResponse
     {
         $actor = $request->user();
+        abort_unless((int) $roleAssignment->semester_id === (int) Semester::activeOrFail()->id && ! $roleAssignment->revoked_at, 404);
         if ($roleAssignment->role === 'vice_president' && ! $actor->isPresident()) {
             abort(403);
         }
@@ -79,7 +87,10 @@ class OrganizationController extends Controller
     public function assignMember(Request $request): RedirectResponse
     {
         $semester = Semester::activeOrFail();
-        $data = $request->validate(['user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')], 'org_unit_id' => ['required', 'exists:org_units,id']]);
+        $data = $request->validate([
+            'user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
+            'org_unit_id' => ['required', Rule::exists('org_units', 'id')->where(fn ($query) => $query->where('semester_id', $semester->id)->where('type', 'team')->where('is_active', true))],
+        ]);
         if (! AccessScope::managesUnit($request->user(), (int) $data['org_unit_id'])) {
             abort(403);
         }
@@ -98,8 +109,8 @@ class OrganizationController extends Controller
         $semester = Semester::activeOrFail();
         $data = $request->validate([
             'name' => ['required', 'string', 'max:150'], 'description' => ['nullable', 'string', 'max:3000'],
-            'org_unit_id' => ['nullable', 'exists:org_units,id'], 'lead_user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
-            'member_ids' => ['array'], 'member_ids.*' => [Rule::exists('users', 'id')->where('approval_status', 'approved')], 'ends_at' => ['nullable', 'date', 'after_or_equal:today'],
+            'org_unit_id' => ['nullable', Rule::exists('org_units', 'id')->where(fn ($query) => $query->where('semester_id', $semester->id)->where('is_active', true))], 'lead_user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
+            'member_ids' => ['array', 'max:250'], 'member_ids.*' => ['integer', 'distinct', Rule::exists('users', 'id')->where('approval_status', 'approved')], 'ends_at' => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:'.$semester->ends_at->toDateString()],
         ]);
         if (! $request->user()->isPresident() && ! AccessScope::managesUnit($request->user(), $data['org_unit_id'] ?? null)) {
             abort(403);
