@@ -90,6 +90,66 @@ class SecurityTest extends TestCase
         $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
     }
 
+    public function test_password_can_be_updated_through_a_post_with_method_override()
+    {
+        $user = User::factory()->create();
+
+        $response = $this
+            ->actingAs($user)
+            ->from(route('security.edit'))
+            ->withHeaders(['X-Inertia' => 'true', 'X-HTTP-Method-Override' => 'PUT'])
+            ->post(route('user-password.update'), [
+                'current_password' => 'password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertStatus(303)
+            ->assertRedirect(route('security.edit'));
+
+        $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
+    }
+
+    public function test_password_update_shows_a_success_toast_after_the_redirect()
+    {
+        $user = User::factory()->create();
+
+        $page = $this
+            ->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => time()])
+            ->from(route('security.edit'))
+            ->followingRedirects()
+            ->put(route('user-password.update'), [
+                'current_password' => 'password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ])
+            ->inertiaPage();
+
+        $this->assertSame('settings/Security', $page['component']);
+        $this->assertSame(['type' => 'success', 'message' => 'Jelszó módosítva.'], $page['flash']['toast'] ?? null);
+    }
+
+    public function test_validation_errors_are_shown_in_hungarian()
+    {
+        $user = User::factory()->create();
+
+        $this
+            ->actingAs($user)
+            ->from(route('security.edit'))
+            ->put(route('user-password.update'), [
+                'current_password' => 'wrong-password',
+                'password' => 'new-password',
+                'password_confirmation' => 'other-password',
+            ])
+            ->assertSessionHasErrors([
+                'current_password' => 'A jelszó helytelen.',
+                'password' => 'A(z) jelszó megerősítése nem egyezik.',
+            ]);
+    }
+
     public function test_correct_password_must_be_provided_to_update_password()
     {
         $user = User::factory()->create();

@@ -1,0 +1,15 @@
+{
+    "Password updated.": "Jelszó módosítva.",
+    "Profile updated.": "Profil mentve.",
+    "The provided password was incorrect.": "A megadott jelszó helytelen.",
+    "The provided two factor authentication code was invalid.": "A megadott kétlépcsős azonosító kód érvénytelen.",
+    "The provided two factor recovery code was invalid.": "A megadott helyreállítási kód érvénytelen.",
+    "The :attribute must be at least :length characters.": "A(z) :attribute legalább :length karakter hosszú kell legyen.",
+    "The :attribute must be at least :length characters and contain at least one number.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy számot.",
+    "The :attribute must be at least :length characters and contain at least one special character.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy speciális karaktert.",
+    "The :attribute must be at least :length characters and contain at least one special character and one number.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy speciális karaktert és egy számot.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy nagybetűt.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character and one number.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy nagybetűt és egy számot.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character and one special character.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy nagybetűt és egy speciális karaktert.",
+    "The :attribute must be at least :length characters and contain at least one uppercase character, one number, and one special character.": "A(z) :attribute legalább :length karakter hosszú kell legyen, és tartalmaznia kell legalább egy nagybetűt, egy számot és egy speciális karaktert."
+}

@@ -4,6 +4,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { initializeFlashToast } from '@/lib/flashToast';
+import { initializeMethodOverride } from '@/lib/methodOverride';
 
 const appName = import.meta.env.VITE_APP_NAME || 'FAKT';
 
@@ -31,6 +32,8 @@ initializeTheme();
 
 // This will listen for flash toast data from the server...
 initializeFlashToast();
+
+initializeMethodOverride();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
     window.addEventListener('load', () =>

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -35,6 +36,8 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $this->flashSessionMessagesAsToast($request);
+
         return array_merge(parent::share($request), ['name' => config('app.name'), 'auth' => [
             'user' => function () use ($request) {
                 $user = $request->user();
@@ -64,9 +67,22 @@ class HandleInertiaRequests extends Middleware
                     );
                 });
             },
-        ], 'flash' => [
-            'success' => fn () => $request->session()->get('success'),
-            'error' => fn () => $request->session()->get('error'),
         ], 'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true']);
+    }
+
+    // Controllers redirect ->with('success'|'error', ...); the frontend only renders Inertia's one-time `toast` flash.
+    private function flashSessionMessagesAsToast(Request $request): void
+    {
+        if (! $request->hasSession()) {
+            return;
+        }
+
+        foreach (['success', 'error'] as $type) {
+            $message = $request->session()->get($type);
+
+            if (is_string($message) && $message !== '') {
+                Inertia::flash('toast', ['type' => $type, 'message' => $message]);
+            }
+        }
     }
 }
