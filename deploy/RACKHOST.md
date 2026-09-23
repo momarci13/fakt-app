@@ -139,7 +139,7 @@ Adatbázistáblák létrehozása/frissítése:
 ```
 
 Ezután a `.env` fájlban cseréld a DB usert `nxt02408_faktruntime` értékre, a deploy usert pedig vedd le az adatbázisról. Csak ezután futtasd a bootstrapot és a production cache-t.
-
+# ITT VAGYOK
 Első elnöki fiók — csak üres, első telepítésnél:
 
 ```text

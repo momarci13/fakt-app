@@ -8,7 +8,7 @@ $warnings = [];
 $corePath = dirname(__DIR__);
 
 if (version_compare(PHP_VERSION, '8.3.0', '<')) {
-    $errors[] = 'PHP 8.3 vagy újabb szükséges; jelenlegi: '.PHP_VERSION;
+    $errors[] = 'PHP 8.3 vagy újabb szükséges a CLI-ben; jelenlegi: '.PHP_VERSION;
 }
 
 foreach ($requiredExtensions as $extension) {
@@ -57,8 +57,19 @@ if (! is_file($envPath) || ! is_readable($envPath)) {
         }
     }
 
-    if (! str_starts_with((string) ($env['APP_KEY'] ?? ''), 'base64:')) {
+    $appKey = (string) ($env['APP_KEY'] ?? '');
+    if (! str_starts_with($appKey, 'base64:')) {
         $errors[] = 'Az APP_KEY hiányzik vagy nem Laravel base64 kulcs.';
+    } else {
+        // Az AES-256-CBC pontosan 32 bájtos kulcsot vár. Rossz hosszúságú kulccsal
+        // minden artisan parancs hibátlanul lefut, de minden böngészőkérés HTTP 500 lesz,
+        // mert csak a HTTP réteg oldja fel a titkosítót (session- és sütikezelés).
+        $decodedKey = base64_decode(substr($appKey, 7), true);
+        if ($decodedKey === false) {
+            $errors[] = 'Az APP_KEY nem dekódolható base64 érték.';
+        } elseif (strlen($decodedKey) !== 32) {
+            $errors[] = 'Az APP_KEY dekódolva '.strlen($decodedKey).' bájt, de AES-256-CBC mellett 32 bájt kell.';
+        }
     }
     foreach (['DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'MAIL_USERNAME', 'MAIL_PASSWORD'] as $key) {
         $value = (string) ($env[$key] ?? '');
@@ -77,6 +88,12 @@ if (! is_file($envPath) || ! is_readable($envPath)) {
 echo "FAKT Rackhost preflight\n";
 echo 'PHP: '.PHP_VERSION."\n";
 echo 'SAPI: '.PHP_SAPI."\n";
+
+echo "\n";
+echo "[FONTOS] Ez a szkript cronból fut, ezért a CLI PHP-t ellenőrzi.\n";
+echo "         A weboldalt ettől függetlenül a cPanel MultiPHP Manager szerinti PHP futtatja.\n";
+echo "         Ha minden artisan parancs zöld, de a weboldal HTTP 500-at ad, ezt nézd meg először:\n";
+echo "         cPanel -> MultiPHP Manager -> app.fakt.org.hu -> PHP 8.3 -> Apply.\n\n";
 
 foreach ($warnings as $warning) {
     echo '[FIGYELEM] '.$warning."\n";

@@ -1,0 +1,15 @@
+# php -- BEGIN cPanel-generated handler, do not edit
+# Az app.fakt.org.hu dokumentumgyökere a public_html ALATT van, a fakt.org.hu pedig
+# PHP 7.4-en fut. Az Apache a public_html/.htaccess fájlt is beolvassa lefelé haladva,
+# ezért az ottani ea-php74 AddHandler sor öröklődik ide, és felülírja a MultiPHP
+# Manager felületén látszó PHP 8.3 beállítást. PHP-FPM nélkül kizárólag ez a blokk
+# dönti el, melyik PHP futtatja a kéréseket.
+#
+# A cPanel ezt a blokkot maga írja ki a dokumentumgyökér .htaccess fájljába, de a
+# telepítés a teljes public mappát lecseréli, és ezzel törli. Ezért a kiadási csomag
+# maga hozza magával.
+#
+# Ha a PHP verziót váltod, ezt a sort is módosítsd. Ha bekapcsolod a PHP-FPM-et,
+# töröld ezt a blokkot, és a MultiPHP Managerben alkalmazd újra a verziót.
+AddHandler application/x-httpd-ea-php83 .php .php8 .phtml
+# php -- END cPanel-generated handler, do not edit

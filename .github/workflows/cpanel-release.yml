@@ -75,15 +75,18 @@ jobs:
             --exclude='tools'
           cp -a public/. release/fakt-app-public/
           cp deploy/cpanel-public-index.php release/fakt-app-public/index.php
+          cat deploy/cpanel-php-handler.htaccess release/fakt-app-public/.htaccess > release/fakt-app-public/.htaccess.new
+          mv release/fakt-app-public/.htaccess.new release/fakt-app-public/.htaccess
           cp deploy/.env.cpanel.example release/fakt-app-core/.env.cpanel.example
           cp deploy/RACKHOST-QUICK-DEPLOY.md release/DEPLOYMENT-GUIDE.md
           cp deploy/RACKHOST.md release/DEPLOYMENT-GUIDE-DETAILED.md
           cp deploy/SCHEDULER-HOTFIX.md release/SCHEDULER-HOTFIX.md
+          cp deploy/WEBSITE-500-DIAGNOSIS.md release/WEBSITE-500-DIAGNOSIS.md
           cp deploy/DEPLOYMENT-LOG-TEMPLATE.md release/DEPLOYMENT-LOG-TEMPLATE.md
           cp docs/CHANGELOG-2026-08-18-SECURITY.md release/CHANGELOG.md
           cp docs/SECURITY-HARDENING.md release/SECURITY-HARDENING.md
           cd release
-          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md SCHEDULER-HOTFIX.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md SECURITY-HARDENING.md
+          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md SCHEDULER-HOTFIX.md WEBSITE-500-DIAGNOSIS.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md SECURITY-HARDENING.md
           sha256sum fakt-cpanel-release.zip > fakt-cpanel-release.zip.sha256
 
       - name: Verify cPanel package contents
@@ -93,6 +96,11 @@ jobs:
           unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-public/index.php'
           unzip -l release/fakt-cpanel-release.zip | grep -q 'SECURITY-HARDENING.md'
           unzip -l release/fakt-cpanel-release.zip | grep -q 'SCHEDULER-HOTFIX.md'
+          unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-core/app/Console/Commands/Diagnose.php'
+          grep -q 'PHP_VERSION_ID < 80300' release/fakt-app-public/index.php
+          grep -q 'x-httpd-ea-php83' release/fakt-app-public/.htaccess
+          grep -q 'RewriteEngine On' release/fakt-app-public/.htaccess
+          grep -q 'PHP_VERSION_ID < 80300' release/fakt-app-core/public/index.php
           if unzip -l release/fakt-cpanel-release.zip | grep -Eq 'fakt-app-core/(\.env$|node_modules/|tests/)'; then
             echo 'Forbidden development or secret file found in release package.' >&2
             exit 1
