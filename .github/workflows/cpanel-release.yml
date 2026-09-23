@@ -98,6 +98,7 @@ jobs:
           unzip -l release/fakt-cpanel-release.zip | grep -q 'SCHEDULER-HOTFIX.md'
           unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-core/app/Console/Commands/Diagnose.php'
           grep -q 'PHP_VERSION_ID < 80300' release/fakt-app-public/index.php
+          grep -q 'usePublicPath' release/fakt-app-public/index.php
           grep -q 'x-httpd-ea-php83' release/fakt-app-public/.htaccess
           grep -q 'RewriteEngine On' release/fakt-app-public/.htaccess
           grep -q 'PHP_VERSION_ID < 80300' release/fakt-app-core/public/index.php

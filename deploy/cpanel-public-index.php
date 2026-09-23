@@ -119,7 +119,12 @@ try {
 
     $app = require_once $corePath.'/bootstrap/app.php';
 
+    // Read the Vite manifest from the directory the browser is served from, not
+    // the core's own public/ copy: if the two come from different releases the
+    // page references asset hashes that 404 and renders blank.
     /** @var Application $app */
+    $app->usePublicPath($publicPath);
+
     $app->handleRequest(Request::capture());
 } catch (Throwable $e) {
     // Laravel's own handler deals with everything raised inside the HTTP kernel.
