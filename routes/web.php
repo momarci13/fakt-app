@@ -37,6 +37,8 @@ Route::middleware(['auth', 'approved', 'verified'])->group(function () {
     Route::patch('szervezet/kinevezes/{roleAssignment}/visszavonas', [OrganizationController::class, 'revoke'])->middleware(['throttle:sensitive', 'password.confirm'])->name('organization.revoke');
     Route::post('szervezet/team-tagsag', [OrganizationController::class, 'assignMember'])->middleware(['throttle:sensitive', 'password.confirm'])->name('organization.members.assign');
     Route::post('szervezet/projektek', [OrganizationController::class, 'storeProject'])->middleware(['throttle:sensitive', 'password.confirm'])->name('organization.projects.store');
+    Route::post('szervezet/projektek/{project}/tagok', [OrganizationController::class, 'addProjectMember'])->middleware('throttle:mutations')->name('organization.projects.members.add');
+    Route::delete('szervezet/projektek/{project}/tagok/{user}', [OrganizationController::class, 'removeProjectMember'])->middleware('throttle:mutations')->name('organization.projects.members.remove');
 
     Route::get('kurzusok', [CourseController::class, 'index'])->name('courses.index');
     Route::post('kurzusok', [CourseController::class, 'store'])->middleware('throttle:mutations')->name('courses.store');
@@ -75,6 +77,8 @@ Route::middleware(['auth', 'approved', 'verified'])->group(function () {
         Route::post('admin/kozlemenyek', [AdminController::class, 'announce'])->name('admin.announcements.store');
         Route::patch('admin/kerelmek/{memberRequest}', [AdminController::class, 'reviewMemberRequest'])->name('admin.requests.review');
         Route::patch('admin/regisztraciok/{user}', [AdminController::class, 'reviewRegistration'])->name('admin.registrations.review');
+        Route::post('admin/ktszt', [AdminController::class, 'appointKtsztMember'])->name('admin.ktszt.appoint');
+        Route::patch('admin/ktszt/{roleAssignment}/visszavonas', [AdminController::class, 'revokeKtsztMember'])->name('admin.ktszt.revoke');
     });
 });
 

@@ -9,10 +9,12 @@ use App\Models\ImportRow;
 use App\Models\MemberProfile;
 use App\Models\MemberRequest;
 use App\Models\ObligationRule;
+use App\Models\RoleAssignment;
 use App\Models\Semester;
 use App\Models\User;
 use App\Notifications\FaktNotification;
 use App\Support\Audit;
+use App\Support\Ktszt;
 use App\Support\SecureUpload;
 use App\Support\UntrustedInput;
 use App\Support\SessionSecurity;
@@ -441,5 +443,56 @@ class AdminController extends Controller
     private function authorizePresident(Request $request): void
     {
         abort_unless($request->user()->isPresident(), 403);
+    }
+/**
+     * Appoint an elected KTSZT member (Testület határozat 2.2.2, 3.2).
+     *
+     * The two ex-officio seats are derived from the Szakmaiság roles and are
+     * never appointed here.
+     */
+    public function appointKtsztMember(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()->isPresident(), 403);
+        $semester = Semester::activeOrFail();
+
+        $data = $request->validate([
+            'user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')],
+            'ends_at' => ['nullable', 'date', 'after_or_equal:today'],
+        ]);
+
+        if (Ktszt::electedSeatsRemaining($semester->id) < 1) {
+            return back()->withErrors(['user_id' => 'A Testületnek már megvan a legfeljebb három választott tagja.']);
+        }
+
+        if (Ktszt::memberUserIds($semester->id)->contains((int) $data['user_id'])) {
+            return back()->withErrors(['user_id' => 'Ez a tag már a Testület tagja.']);
+        }
+
+        $assignment = RoleAssignment::query()->create([
+            'semester_id' => $semester->id,
+            'user_id' => $data['user_id'],
+            'appointed_by' => $request->user()->id,
+            'role' => Ktszt::ROLE,
+            'starts_at' => today(),
+            'ends_at' => $data['ends_at'] ?? null,
+        ]);
+
+        Audit::record($assignment, 'ktszt_appointed');
+
+        return back()->with('success', 'A választott Testületi tag kinevezve.');
+    }
+
+    /** Testület határozat 4.3: an elected mandate ends on resignation. */
+    public function revokeKtsztMember(Request $request, RoleAssignment $roleAssignment): RedirectResponse
+    {
+        abort_unless($request->user()->isPresident(), 403);
+        abort_unless($roleAssignment->role === Ktszt::ROLE, 404);
+        abort_unless($roleAssignment->revoked_at === null, 404);
+
+        $before = $roleAssignment->toArray();
+        $roleAssignment->update(['revoked_at' => now()]);
+        Audit::record($roleAssignment, 'ktszt_revoked', $before);
+
+        return back()->with('success', 'A Testületi mandátum visszavonva.');
     }
 }

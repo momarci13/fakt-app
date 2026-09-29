@@ -98,6 +98,11 @@ class CourseController extends Controller
     public function review(Request $request, EnrollmentRequest $enrollment): RedirectResponse
     {
         abort_unless(AccessScope::managesCourses($request->user()), 403);
+        abort_unless(
+            AccessScope::canDecideFor($request->user(), $enrollment->user_id),
+            403,
+            'Összeférhetetlenség: a saját jelentkezésedről nem dönthetsz.'
+        );
         abort_unless((int) $enrollment->course->semester_id === (int) Semester::activeOrFail()->id, 404);
         $data = $request->validate(['status' => ['required', Rule::in(['approved', 'rejected', 'waitlisted'])], 'decision_note' => ['nullable', 'string', 'max:1000']]);
         $course = $enrollment->course;
