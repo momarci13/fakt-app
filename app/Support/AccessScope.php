@@ -33,11 +33,27 @@ class AccessScope
             return true;
         }
 
+        // KTSzT határozat 1.2: course planning, enrollment, placement and
+        // completion decisions belong to the Testület.
+        if (Ktszt::isMember($user)) {
+            return true;
+        }
+
         $professionalUnitIds = OrgUnit::query()
             ->whereIn('id', $user->managedOrgUnitIds())
             ->where(fn ($q) => $q->where('slug', 'like', '%szakmaisag%')->orWhere('name', 'like', '%Szakmaiság%'))
             ->pluck('id');
 
         return $professionalUnitIds->isNotEmpty();
+    }
+
+    /**
+     * KTSzT határozat 1.2.6, applied to everyone rather than only to Testület
+     * members: nobody decides a record they are the subject of. Pass every user
+     * the record belongs to so a co-authored submission excludes each co-author.
+     */
+    public static function canDecideFor(User $actor, int|string|null ...$subjectUserIds): bool
+    {
+        return Ktszt::canDecideOn($actor, $subjectUserIds);
     }
 }

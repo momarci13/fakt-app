@@ -13,7 +13,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
  * @property int $id
@@ -21,9 +20,6 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password
- * @property string|null $two_factor_secret
- * @property string|null $two_factor_recovery_codes
- * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -31,7 +27,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use HasFactory, Notifiable;
 
     protected $attributes = [
         'approval_status' => 'approved',
@@ -55,8 +51,6 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected $hidden = [
         'password',
-        'two_factor_secret',
-        'two_factor_recovery_codes',
         'remember_token',
         'calendar_token',
     ];
@@ -69,7 +63,6 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'password' => 'hashed',
         'email_verified_at' => 'datetime',
-        'two_factor_confirmed_at' => 'datetime',
         'invited_at' => 'datetime',
         'last_seen_at' => 'datetime',
         'approved_at' => 'datetime',

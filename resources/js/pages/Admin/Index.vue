@@ -64,7 +64,22 @@ type PendingRegistration = {
     created_at: string;
     profile?: { cohort_year?: number };
 };
+type KtsztPerson = { id: number; name: string; email: string };
+type KtsztPanel = {
+    chair: { id: number; name: string } | null;
+    exOfficio: Array<{ role: string; user: KtsztPerson | null }>;
+    elected: Array<{
+        id: number;
+        starts_at: string | null;
+        ends_at: string | null;
+        user: KtsztPerson | null;
+    }>;
+    maxElected: number;
+    seatsRemaining: number;
+    candidates: KtsztPerson[];
+};
 defineProps<{
+    ktszt: KtsztPanel | null;
     semester: { name: string; rules_published_at?: string } | null;
     semesters: unknown[];
     rules: Rule[];
@@ -74,6 +89,25 @@ defineProps<{
     importBatches: ImportBatch[];
     stats: { users: number; active: number; alumni: number; pending: number };
 }>();
+const exOfficioLabel = (role: string) =>
+    ({
+        vice_president: 'Szakmaiságért felelős Alelnök',
+        team_leader: 'Szakmaiság Teamvezető',
+    })[role] ?? role;
+// A Y-m-d calendar date, read as a local date so no viewer's timezone shifts it.
+const day = (value: string | null) => {
+    if (!value) {
+        return '';
+    }
+
+    const [year, month, date] = value.slice(0, 10).split('-').map(Number);
+
+    return new Intl.DateTimeFormat('hu-HU', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(year, month - 1, date));
+};
 const date = (value: string) =>
     new Intl.DateTimeFormat('hu-HU', {
         year: 'numeric',
@@ -303,6 +337,163 @@ const date = (value: string) =>
                         >Publikálás</Button
                     ></Form
                 >
+            </div>
+        </section>
+
+        <section v-if="ktszt" id="ktszt" class="fakt-panel overflow-hidden">
+            <header
+                class="flex flex-wrap items-end justify-between gap-4 border-b p-5"
+            >
+                <div class="max-w-2xl">
+                    <p class="fakt-label">Testületi Határozat 2.1</p>
+                    <h2 class="mt-1 text-h2">
+                        Kurzustervező és -szervező Testület
+                    </h2>
+                    <p class="mt-1 text-small text-muted-foreground">
+                        Két alanyi jogú és legfeljebb
+                        {{ ktszt.maxElected }} választott tag.
+                        <template v-if="ktszt.chair">
+                            A Testületet {{ ktszt.chair.name }} vezeti.
+                        </template>
+                    </p>
+                </div>
+                <p class="text-small text-muted-foreground" data-numeric>
+                    {{ ktszt.elected.length }} / {{ ktszt.maxElected }}
+                    választott hely betöltve
+                </p>
+            </header>
+
+            <div class="grid md:grid-cols-2">
+                <div class="border-b p-5 md:border-r md:border-b-0">
+                    <h3 class="text-h3">Alanyi jogú tagok</h3>
+                    <p class="mt-1 text-small text-muted-foreground">
+                        A Szakmaiság szerepkijelöléseiből származnak, itt nem
+                        kell kinevezni őket.
+                    </p>
+                    <ul
+                        class="mt-4 divide-y rounded-[var(--radius-surface)] border"
+                    >
+                        <li
+                            v-for="seat in ktszt.exOfficio"
+                            :key="seat.user?.id ?? seat.role"
+                            class="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                            <div class="min-w-0">
+                                <p class="truncate font-medium">
+                                    {{ seat.user?.name }}
+                                </p>
+                                <p
+                                    class="truncate text-small text-muted-foreground"
+                                >
+                                    {{ seat.user?.email }}
+                                </p>
+                            </div>
+                            <span
+                                class="shrink-0 text-small text-muted-foreground"
+                                >{{ exOfficioLabel(seat.role) }}</span
+                            >
+                        </li>
+                        <li
+                            v-if="!ktszt.exOfficio.length"
+                            class="px-4 py-3 text-small text-muted-foreground"
+                        >
+                            Ebben a félévben nincs aktív Szakmaiság Alelnök vagy
+                            Teamvezető.
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="p-5">
+                    <h3 class="text-h3">Választott tagok</h3>
+                    <p class="mt-1 text-small text-muted-foreground">
+                        A Szakkollégiumi Gyűlés választja meg őket, az Elnök
+                        rögzíti a választás eredményét.
+                    </p>
+                    <ul
+                        class="mt-4 divide-y rounded-[var(--radius-surface)] border"
+                    >
+                        <li
+                            v-for="seat in ktszt.elected"
+                            :key="seat.id"
+                            class="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                            <div class="min-w-0">
+                                <p class="truncate font-medium">
+                                    {{ seat.user?.name }}
+                                </p>
+                                <p
+                                    class="text-small text-muted-foreground"
+                                    data-numeric
+                                >
+                                    Megbízva: {{ day(seat.starts_at) }}
+                                </p>
+                            </div>
+                            <Form
+                                :action="`/admin/ktszt/${seat.id}/visszavonas`"
+                                method="patch"
+                                v-slot="{ processing }"
+                            >
+                                <Button
+                                    type="submit"
+                                    variant="outline"
+                                    size="sm"
+                                    :disabled="processing"
+                                    >Mandátum visszavonása</Button
+                                >
+                            </Form>
+                        </li>
+                        <li
+                            v-for="n in ktszt.seatsRemaining"
+                            :key="`vacant-${n}`"
+                            class="px-4 py-3 text-small text-muted-foreground"
+                        >
+                            Betöltetlen hely
+                        </li>
+                    </ul>
+
+                    <Form
+                        v-if="ktszt.seatsRemaining > 0"
+                        action="/admin/ktszt"
+                        method="post"
+                        class="mt-4 grid gap-2"
+                        reset-on-success
+                        v-slot="{ errors, processing }"
+                    >
+                        <label for="ktszt-user" class="text-small font-medium"
+                            >Választott tag rögzítése</label
+                        >
+                        <div class="flex gap-2">
+                            <select
+                                id="ktszt-user"
+                                name="user_id"
+                                class="fakt-input min-w-0"
+                                required
+                            >
+                                <option value="">Tag kiválasztása…</option>
+                                <option
+                                    v-for="candidate in ktszt.candidates"
+                                    :key="candidate.id"
+                                    :value="candidate.id"
+                                >
+                                    {{ candidate.name }} ({{ candidate.email }})
+                                </option>
+                            </select>
+                            <Button type="submit" :disabled="processing"
+                                >Rögzítés</Button
+                            >
+                        </div>
+                        <p
+                            v-if="errors.user_id"
+                            class="text-small text-destructive"
+                        >
+                            {{ errors.user_id }}
+                        </p>
+                    </Form>
+                    <p v-else class="mt-4 text-small text-muted-foreground">
+                        Mindhárom választott hely betöltve. Új tag rögzítéséhez
+                        előbb vonj vissza egy mandátumot.
+                    </p>
+                </div>
             </div>
         </section>
 

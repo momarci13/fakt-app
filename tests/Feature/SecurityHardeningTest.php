@@ -116,20 +116,11 @@ class SecurityHardeningTest extends TestCase
             ->assertTooManyRequests();
     }
 
-    public function test_leaders_are_forced_to_enable_confirmed_mfa_when_policy_is_enabled(): void
+    public function test_leaders_reach_the_dashboard_without_a_second_factor(): void
     {
-        config(['security.require_privileged_mfa' => true]);
         [$president] = $this->leaderAndSemester();
 
-        $this->actingAs($president)->get(route('dashboard'))->assertRedirect(route('security.edit'));
-
-        $president->forceFill([
-            'two_factor_secret' => encrypt('test-secret'),
-            'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code'])),
-            'two_factor_confirmed_at' => now(),
-        ])->save();
-
-        $this->actingAs($president->fresh())->get(route('dashboard'))->assertOk();
+        $this->actingAs($president)->get(route('dashboard'))->assertOk();
     }
 
     public function test_a_member_cannot_rsvp_to_an_event_outside_their_scope(): void

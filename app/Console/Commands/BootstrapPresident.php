@@ -6,6 +6,7 @@ use App\Models\MemberProfile;
 use App\Models\RoleAssignment;
 use App\Models\Semester;
 use App\Models\User;
+use App\Support\OrgStructure;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -35,8 +36,9 @@ class BootstrapPresident extends Command
         }
 
         $generatedPassword = null;
+        $unitsCreated = 0;
 
-        DB::transaction(function () use ($email, $name, &$generatedPassword): void {
+        DB::transaction(function () use ($email, $name, &$generatedPassword, &$unitsCreated): void {
             $semester = Semester::active();
 
             if (! $semester) {
@@ -48,6 +50,10 @@ class BootstrapPresident extends Command
                     'course_selection_open' => false,
                 ]);
             }
+
+            // Nothing in the interface creates org units; without this a fresh
+            // database has no portfolios or Teams to appoint anyone to.
+            $unitsCreated = OrgStructure::ensureFor($semester);
 
             $user = User::query()->where('email', $email)->first();
 
@@ -83,6 +89,7 @@ class BootstrapPresident extends Command
         });
 
         $this->info('Az elnöki jogosultság elkészült: '.$email);
+        $this->info('Szervezeti struktúra: '.$unitsCreated.' új egység (4 alelnöki portfólió, 6 Team az SZMSZ 12.2-12.3 szerint).');
 
         if ($generatedPassword !== null) {
             $this->warn('Egyszer használatos kezdeti jelszó: '.$generatedPassword);

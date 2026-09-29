@@ -59,6 +59,11 @@ class LifecycleController extends Controller
             'value' => ['required', 'numeric', 'between:-10,100'],
             'note' => ['nullable', 'string', 'max:2000'],
         ]);
+        abort_unless(
+            AccessScope::canDecideFor($request->user(), $data['user_id']),
+            403,
+            'Összeférhetetlenség: a saját előrehaladásodat nem rögzítheted.'
+        );
         $record = ProgressRecord::query()->create(array_merge($data, ['semester_id' => $semester->id, 'status' => 'approved', 'approved_by' => $request->user()->id, 'approved_at' => now()]));
         Audit::record($record, 'progress_approved');
 

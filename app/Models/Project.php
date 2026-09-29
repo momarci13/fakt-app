@@ -10,7 +10,12 @@ class Project extends Model
 {
     protected $fillable = ['semester_id', 'org_unit_id', 'lead_user_id', 'created_by', 'name', 'description', 'status', 'starts_at', 'ends_at'];
 
-    protected $casts = ['starts_at' => 'date', 'ends_at' => 'date'];
+    /**
+     * Calendar dates, not instants. The plain 'date' cast serializes to a UTC
+     * timestamp, so Budapest midnight on the 15th reaches the browser as
+     * 23:00Z on the 14th and renders one day early outside Budapest time.
+     */
+    protected $casts = ['starts_at' => 'date:Y-m-d', 'ends_at' => 'date:Y-m-d'];
 
     public function lead(): BelongsTo
     {
