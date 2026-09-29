@@ -54,6 +54,10 @@
 
     --color-primary: var(--primary);
     --color-primary-foreground: var(--primary-foreground);
+    --color-primary-hover: var(--primary-hover);
+    --color-secondary-hover: var(--secondary-hover);
+    --color-accent-hover: var(--accent-hover);
+    --color-destructive-hover: var(--destructive-hover);
 
     --color-secondary: var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
@@ -116,6 +120,10 @@
     --popover-foreground: hsl(0 0% 3.9%);
     --primary: #308330;
     --primary-foreground: #ffffff;
+    --primary-hover: #266826;
+    --secondary-hover: hsl(150 6% 86%);
+    --accent-hover: hsl(150 8% 91%);
+    --destructive-hover: hsl(0 72% 47%);
     --secondary: hsl(150 6% 92%);
     --secondary-foreground: hsl(0 0% 9%);
     --muted: hsl(150 8% 96%);
@@ -155,6 +163,10 @@
     --popover-foreground: hsl(150 6% 95%);
     --primary: #5cb85c;
     --primary-foreground: #06140a;
+    --primary-hover: #7ac97a;
+    --secondary-hover: hsl(150 6% 29%);
+    --accent-hover: hsl(150 6% 29%);
+    --destructive-hover: hsl(4 70% 65%);
     --secondary: hsl(150 6% 23%);
     --secondary-foreground: hsl(150 6% 95%);
     --muted: hsl(150 6% 23%);
