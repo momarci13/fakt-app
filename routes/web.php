@@ -24,7 +24,7 @@ Route::get('calendar/feed/{token}.ics', CalendarFeedController::class)
     ->name('calendar.feed');
 Route::get('kurzuskinalat', [CourseController::class, 'publicIndex'])->middleware('throttle:60,1')->name('courses.public');
 
-Route::middleware(['auth', 'approved', 'verified', 'mfa.leader'])->group(function () {
+Route::middleware(['auth', 'approved', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::post('ertesitesek/{notification}/olvasott', [NotificationController::class, 'read'])->whereUuid('notification')->middleware('throttle:mutations')->name('notifications.read');
 
