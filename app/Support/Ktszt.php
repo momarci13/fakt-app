@@ -178,6 +178,55 @@ final class Ktszt
         return true;
     }
 
+    /**
+     * The assignments behind the ex-officio seats, with the user loaded, so
+     * the panel can say which office each seat comes from.
+     *
+     * @return Collection<int, RoleAssignment>
+     */
+    public static function exOfficioAssignments(?int $semesterId = null): Collection
+    {
+        $semesterId = self::semesterId($semesterId);
+
+        if (! $semesterId) {
+            return collect();
+        }
+
+        $unitIds = self::professionalUnitIds($semesterId);
+
+        return self::activeAssignments($semesterId)
+            ->whereIn('role', self::EX_OFFICIO_ROLES)
+            ->whereIn('org_unit_id', $unitIds)
+            ->unique('user_id')
+            ->load('user:id,name,email')
+            ->values();
+    }
+
+    /**
+     * The assignments behind the elected seats, matching electedUserIds()
+     * exactly, so the revoke control always targets a seat that is really held.
+     *
+     * @return Collection<int, RoleAssignment>
+     */
+    public static function electedAssignments(?int $semesterId = null): Collection
+    {
+        $semesterId = self::semesterId($semesterId);
+
+        if (! $semesterId) {
+            return collect();
+        }
+
+        $elected = self::electedUserIds($semesterId);
+
+        return self::activeAssignments($semesterId)
+            ->where('role', self::ROLE)
+            ->whereIn('user_id', $elected)
+            ->sortBy('starts_at')
+            ->unique('user_id')
+            ->load('user:id,name,email')
+            ->values();
+    }
+
     /** @return Collection<int, RoleAssignment> */
     private static function activeAssignments(int $semesterId): Collection
     {

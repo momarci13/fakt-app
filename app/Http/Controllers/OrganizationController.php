@@ -32,6 +32,10 @@ class OrganizationController extends Controller
             'members' => User::query()->where('approval_status', 'approved')->with('profile')->orderBy('name')->get(['id', 'name', 'email']),
             'canAdmin' => $request->user()->isPresident(),
             'managedUnitIds' => $request->user()->managedOrgUnitIds(),
+            // The Elnök manages every Projekt; a Projektvezető manages their own.
+            'managedProjectIds' => $request->user()->isPresident()
+                ? Project::query()->where('semester_id', $semester?->id)->pluck('id')
+                : Project::query()->where('semester_id', $semester?->id)->where('lead_user_id', $request->user()->id)->pluck('id'),
         ]);
     }
 
@@ -128,7 +132,8 @@ class OrganizationController extends Controller
 
         return back()->with('success', 'A projekt létrejött.');
     }
-/**
+
+    /**
      * Add someone to a Projekt.
      *
      * AccessScope::managesProject is the Projektvezető and the Elnök, which is

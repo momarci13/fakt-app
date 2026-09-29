@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Notifications\FaktNotification;
 use App\Support\Audit;
 use App\Support\Ktszt;
+use App\Support\OrgStructure;
 use App\Support\SecureUpload;
 use App\Support\UntrustedInput;
 use App\Support\SessionSecurity;
@@ -47,6 +48,7 @@ class AdminController extends Controller
                 ->oldest()
                 ->get(['id', 'name', 'email', 'registration_note', 'created_at']),
             'importBatches' => ImportBatch::query()->with(['rows' => fn ($query) => $query->orderBy('row_number')->limit(8)])->latest()->take(10)->get(),
+            'ktszt' => $semester ? $this->ktsztPanel($semester->id) : null,
             'stats' => [
                 'users' => User::query()->where('approval_status', 'approved')->count(),
                 'active' => MemberProfile::query()->whereIn('member_status', ['active', 'senior'])->count(),
@@ -322,6 +324,8 @@ class AdminController extends Controller
             Semester::query()->update(['is_active' => false]);
         }
         $semester = Semester::query()->create(array_merge(collect($data)->except('activate')->all(), ['is_active' => $data['activate'] ?? false]));
+        // Org units are per semester; a new semester starts with the statutory structure.
+        OrgStructure::ensureFor($semester);
         Audit::record($semester, 'created');
 
         return back()->with('success', 'A félév létrejött.');
@@ -444,7 +448,36 @@ class AdminController extends Controller
     {
         abort_unless($request->user()->isPresident(), 403);
     }
-/**
+
+    /** @return array<string, mixed> */
+    private function ktsztPanel(int $semesterId): array
+    {
+        $memberIds = Ktszt::memberUserIds($semesterId);
+
+        return [
+            'chair' => Ktszt::chair($semesterId)?->only(['id', 'name']),
+            'exOfficio' => Ktszt::exOfficioAssignments($semesterId)
+                ->map(fn (RoleAssignment $a) => ['role' => $a->role, 'user' => $a->user?->only(['id', 'name', 'email'])])
+                ->values(),
+            'elected' => Ktszt::electedAssignments($semesterId)
+                ->map(fn (RoleAssignment $a) => [
+                    'id' => $a->id,
+                    'starts_at' => $a->starts_at?->toDateString(),
+                    'ends_at' => $a->ends_at?->toDateString(),
+                    'user' => $a->user?->only(['id', 'name', 'email']),
+                ])
+                ->values(),
+            'maxElected' => Ktszt::MAX_ELECTED,
+            'seatsRemaining' => Ktszt::electedSeatsRemaining($semesterId),
+            'candidates' => User::query()
+                ->where('approval_status', 'approved')
+                ->whereNotIn('id', $memberIds)
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
+        ];
+    }
+
+    /**
      * Appoint an elected KTSZT member (Testület határozat 2.2.2, 3.2).
      *
      * The two ex-officio seats are derived from the Szakmaiság roles and are

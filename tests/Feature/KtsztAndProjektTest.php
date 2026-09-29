@@ -11,6 +11,7 @@ use App\Models\Semester;
 use App\Models\User;
 use App\Support\Ktszt;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class KtsztAndProjektTest extends TestCase
@@ -276,5 +277,103 @@ class KtsztAndProjektTest extends TestCase
         $this->assign($lead, 'project_leader');
 
         $this->assertFalse(Ktszt::memberUserIds($this->semester->id)->contains($lead->id));
+    }
+
+    // ------------------------------------------------------------- page props
+
+    public function test_the_admin_page_carries_the_ktszt_panel(): void
+    {
+        $teamLeader = $this->approved('Szakmaiság Teamvezető');
+        $this->assign($teamLeader, 'team_leader', $this->team->id);
+        $elected = $this->approved('Választott tag');
+        $this->assign($elected, Ktszt::ROLE);
+        $candidate = $this->approved('Jelölt');
+
+        $this->actingAs($this->president)
+            ->get(route('admin.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Index')
+                ->has('ktszt.exOfficio', 2)
+                ->has('ktszt.elected', 1)
+                ->where('ktszt.elected.0.user.id', $elected->id)
+                ->where('ktszt.seatsRemaining', 2)
+                ->where('ktszt.maxElected', 3)
+                ->where('ktszt.chair.id', $this->szakmaisagVicePresident->id)
+                ->where('ktszt.candidates', function ($candidates) use ($candidate, $elected, $teamLeader) {
+                    $ids = collect($candidates)->pluck('id');
+
+                    // Sitting members, elected or ex-officio, are never offered again.
+                    return $ids->contains($candidate->id)
+                        && ! $ids->contains($elected->id)
+                        && ! $ids->contains($teamLeader->id);
+                })
+            );
+    }
+
+    public function test_the_revoke_control_targets_the_seat_actually_held(): void
+    {
+        $elected = $this->approved('Választott tag');
+        $seat = $this->assign($elected, Ktszt::ROLE);
+
+        $this->actingAs($this->president)
+            ->get(route('admin.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('ktszt.elected.0.id', $seat->id));
+
+        $this->actingAs($this->president)
+            ->withSession(['auth.password_confirmed_at' => time()])
+            ->patch(route('admin.ktszt.revoke', $seat))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->president)
+            ->get(route('admin.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('ktszt.elected', 0)->where('ktszt.seatsRemaining', 3));
+    }
+
+    public function test_a_project_leader_is_offered_controls_only_on_their_own_projekt(): void
+    {
+        $lead = $this->approved('Projektvezető');
+        $otherLead = $this->approved('Másik projektvezető');
+
+        $mine = Project::query()->create([
+            'semester_id' => $this->semester->id, 'lead_user_id' => $lead->id, 'created_by' => $this->president->id,
+            'name' => 'Saját projekt', 'status' => 'active', 'starts_at' => now()->toDateString(),
+        ]);
+        $theirs = Project::query()->create([
+            'semester_id' => $this->semester->id, 'lead_user_id' => $otherLead->id, 'created_by' => $this->president->id,
+            'name' => 'Másik projekt', 'status' => 'active', 'starts_at' => now()->toDateString(),
+        ]);
+
+        $this->actingAs($lead)
+            ->get(route('organization.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Organization/Index')
+                ->where('managedProjectIds', fn ($ids) => collect($ids)->values()->all() === [$mine->id])
+            );
+
+        $this->actingAs($this->president)
+            ->get(route('organization.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('managedProjectIds', fn ($ids) => collect($ids)->sort()->values()->all() === collect([$mine->id, $theirs->id])->sort()->values()->all())
+            );
+    }
+
+    public function test_projekt_dates_reach_the_page_as_calendar_dates(): void
+    {
+        // The plain 'date' cast serialized Budapest midnight as the previous
+        // day's 23:00Z, so a 15 December deadline rendered as 14 December.
+        $lead = $this->approved('Projektvezető');
+        Project::query()->create([
+            'semester_id' => $this->semester->id, 'lead_user_id' => $lead->id, 'created_by' => $this->president->id,
+            'name' => 'Határidős projekt', 'status' => 'active', 'starts_at' => '2026-09-15', 'ends_at' => '2026-12-15',
+        ]);
+
+        $this->actingAs($this->president)
+            ->get(route('organization.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('projects.0.ends_at', '2026-12-15')
+                ->where('projects.0.starts_at', '2026-09-15')
+            );
     }
 }
