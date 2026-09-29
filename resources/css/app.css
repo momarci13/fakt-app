@@ -109,8 +109,6 @@
     }
 }
 
-
-
 :root {
     --background: hsl(0 0% 100%);
     --foreground: hsl(0 0% 3.9%);
@@ -240,10 +238,10 @@
     }
 
     .fakt-input {
-        @apply h-10 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 text-sm outline-none transition-[border-color,box-shadow] duration-[var(--duration-hover)] focus:border-primary focus:ring-2 focus:ring-primary/25;
+        @apply h-10 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 text-sm transition-[border-color,box-shadow] duration-[var(--duration-hover)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/25;
     }
 
     .fakt-textarea {
-        @apply min-h-24 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm outline-none transition-[border-color,box-shadow] duration-[var(--duration-hover)] focus:border-primary focus:ring-2 focus:ring-primary/25;
+        @apply min-h-24 w-full rounded-[var(--radius-control)] border border-input bg-background px-3 py-2 text-sm transition-[border-color,box-shadow] duration-[var(--duration-hover)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/25;
     }
 }
