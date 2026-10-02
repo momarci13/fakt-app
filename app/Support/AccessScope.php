@@ -13,6 +13,23 @@ class AccessScope
         return $user->isPresident() || ($orgUnitId && $user->managedOrgUnitIds()->contains($orgUnitId));
     }
 
+    /**
+     * SZMSZ 12.2-12.3: a Teamvezető is appointed by the Elnök or by the Alelnök
+     * whose portfolio the Team belongs to. A Teamvezető manages their own Team
+     * but cannot appoint (or replace) a Teamvezető, themselves included.
+     */
+    public static function appointsTeamLeader(User $user, OrgUnit $team): bool
+    {
+        if ($user->isPresident()) {
+            return true;
+        }
+
+        return $team->type === 'team'
+            && $team->parent_id !== null
+            && $user->managedOrgUnitIds()->contains((int) $team->parent_id)
+            && $user->activeRoleNames()->contains('vice_president');
+    }
+
     public static function managesProject(User $user, ?int $projectId): bool
     {
         if ($user->isPresident()) {
