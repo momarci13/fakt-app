@@ -85,8 +85,10 @@ jobs:
           cp deploy/DEPLOYMENT-LOG-TEMPLATE.md release/DEPLOYMENT-LOG-TEMPLATE.md
           cp docs/CHANGELOG-2026-08-18-SECURITY.md release/CHANGELOG.md
           cp docs/SECURITY-HARDENING.md release/SECURITY-HARDENING.md
+          cp deploy/UPDATE-DEPLOY.md release/UPDATE-DEPLOY.md
+          cp deploy/FRESH-DEPLOY.md release/FRESH-DEPLOY.md
           cd release
-          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md SCHEDULER-HOTFIX.md WEBSITE-500-DIAGNOSIS.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md SECURITY-HARDENING.md
+          zip -qr fakt-cpanel-release.zip fakt-app-core fakt-app-public DEPLOYMENT-GUIDE.md DEPLOYMENT-GUIDE-DETAILED.md SCHEDULER-HOTFIX.md WEBSITE-500-DIAGNOSIS.md DEPLOYMENT-LOG-TEMPLATE.md CHANGELOG.md SECURITY-HARDENING.md UPDATE-DEPLOY.md FRESH-DEPLOY.md
           sha256sum fakt-cpanel-release.zip > fakt-cpanel-release.zip.sha256
 
       - name: Verify cPanel package contents
@@ -96,6 +98,8 @@ jobs:
           unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-public/index.php'
           unzip -l release/fakt-cpanel-release.zip | grep -q 'SECURITY-HARDENING.md'
           unzip -l release/fakt-cpanel-release.zip | grep -q 'SCHEDULER-HOTFIX.md'
+          unzip -l release/fakt-cpanel-release.zip | grep -q 'UPDATE-DEPLOY.md'
+          unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-core/app/Queue/SignalSafeWorker.php'
           unzip -l release/fakt-cpanel-release.zip | grep -q 'fakt-app-core/app/Console/Commands/Diagnose.php'
           grep -q 'PHP_VERSION_ID < 80300' release/fakt-app-public/index.php
           grep -q 'usePublicPath' release/fakt-app-public/index.php

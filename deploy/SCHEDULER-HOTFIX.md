@@ -1,5 +1,8 @@
 # Rackhost scheduler hotfix - PCNTL kompatibilitás
 
+> **Elavult.** A 2026. októberi kiadás óta a scheduler a `proc_open()` tiltását is kezeli.
+> Frissítéshez az `UPDATE-DEPLOY.md`, új telepítéshez a `FRESH-DEPLOY.md` az irányadó.
+
 Ez a kiadás kizárólag a cPanel/Rackhost scheduler hibáját javítja. A hiba oka: a PHP 8.3 környezetben a `pcntl` bővítmény látszik, de a `pcntl_signal()` függvény tiltott. A FAKT ütemezett feladatai ezután megtartják a párhuzamos futást tiltó mutexet, de nem regisztrálnak PCNTL jelkezelőt.
 
 ## Mielőtt feltöltöd

@@ -102,8 +102,9 @@ defineOptions({
                     name="password"
                     required
                     autocomplete="new-password"
-                    minlength="12"
-                    placeholder="Legalább 12 karakter"
+                    minlength="15"
+                    aria-describedby="password-rules"
+                    placeholder="Legalább 15 karakter"
                 />
                 <InputError :message="errors.password" />
             </div>
@@ -114,11 +115,16 @@ defineOptions({
                     name="password_confirmation"
                     required
                     autocomplete="new-password"
-                    minlength="12"
+                    minlength="15"
                     placeholder="Ismételd meg"
                 />
             </div>
         </div>
+        <p id="password-rules" class="-mt-2 text-small text-muted-foreground">
+            A jelszó legalább 15 karakter, és van benne kis- és nagybetű, szám
+            és írásjel (például <code>!</code>, <code>?</code>, <code>-</code>).
+            Nyilvánosan kiszivárgott jelszót a rendszer nem fogad el.
+        </p>
 
         <label
             class="flex items-start gap-3 rounded-xl border p-3 text-xs leading-5"

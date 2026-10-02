@@ -60,11 +60,11 @@ Ha az aldomain már létezik, csak ellenőrizd ezeket az értékeket.
 1. cPanel → **MySQL Database Wizard**.
 2. Hozz létre külön adatbázist, például `faktapp` néven.
 3. Hozz létre két külön, erős és egymástól eltérő jelszavú felhasználót:
-   - `faktdeploy`: csak migrációhoz, ideiglenesen **All Privileges**;
+   - `faktdep`: csak migrációhoz (a cPanel 16 karakterre vágja a MySQL-felhasználóneveket, ezért nem `faktdeploy`), ideiglenesen **All Privileges**;
    - `faktruntime`: az alkalmazáshoz csak `SELECT`, `INSERT`, `UPDATE`, `DELETE`.
 4. Jegyezd fel a teljes, cPanel-előtagos neveket, például:
    - adatbázis: `nxt02408_faktapp`;
-   - deploy user: `nxt02408_faktdeploy`;
+   - deploy user: `nxt02408_faktdep`;
    - runtime user: `nxt02408_faktruntime`;
    - jelszavak: kizárólag a jelszókezelőben.
 
@@ -95,7 +95,6 @@ SESSION_SECURE_COOKIE=true
 SESSION_ENCRYPT=true
 SESSION_SAME_SITE=lax
 APP_TRUSTED_HOST=app.fakt.org.hu
-SECURITY_REQUIRE_PRIVILEGED_MFA=true
 ```
 
 Az első migrációig a `DB_USERNAME`/`DB_PASSWORD` a deploy user legyen. A migráció után kötelező runtime userre cserélni és újracache-elni a konfigurációt.

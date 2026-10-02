@@ -68,7 +68,7 @@ törlődnek, és az új kiadási csomagban benne vannak. Régiből **soha ne má
 |---|---|
 | A letöltött `.env` másolat | Az `APP_KEY` és a DB, SMTP hitelesítő adatok |
 | Az SSL tanúsítvány és a domain beállítás | Nem érinti az újratelepítést |
-| `nxt02408_faktdeploy` és `nxt02408_faktruntime` MySQL user | A 3. szakaszban mindkettőre szükség van |
+| `nxt02408_faktdep` és `nxt02408_faktruntime` MySQL user | A 3. szakaszban mindkettőre szükség van |
 
 Az `APP_KEY` megtartása a legegyszerűbb út. Ha a mentés elveszett, most kivételesen biztonságos új
 kulcsot generálni, mert a teljes törlés után nem marad titkosított adat, amit olvasni kellene.
@@ -81,11 +81,11 @@ Minden más esetben továbbra is tilos a `key:generate`.
 A `migrate:fresh` eldobja a táblákat, ehhez `DROP` jog kell. A `nxt02408_faktruntime` usernek
 szándékosan nincs, ezért a művelet idejére a deploy userre kell váltani.
 
-1. cPanel → **MySQL Databases** → győződj meg róla, hogy `nxt02408_faktdeploy` **All Privileges**
+1. cPanel → **MySQL Databases** → győződj meg róla, hogy `nxt02408_faktdep` **All Privileges**
    joggal rá van kötve a `nxt02408_faktapp` adatbázisra.
 2. Az új core `.env` fájljában ideiglenesen:
    ```
-   DB_USERNAME=nxt02408_faktdeploy
+   DB_USERNAME=nxt02408_faktdep
    DB_PASSWORD=<a deploy user jelszava>
    ```
 3. Az 5. szakasz migrációs lépése után állítsd vissza:
@@ -160,6 +160,11 @@ Minden más marad: `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://app
     /usr/local/bin/ea-php83 /cphome/nxt02408/fakt-app-core/artisan schedule:run >> /dev/null 2>&1
     ```
     A cron űrlap Email mezőjét hagyd üresen, különben napi 1440 levelet kapsz.
+
+    A Rackhost tiltja a `proc_open()` és a `pcntl_signal()` függvényt. A 2026. októberi kiadástól
+    a scheduler minden feladatot (sor, ismétlődő feladatok, emlékeztetők, adatmegőrzés) a saját
+    folyamatán belül futtat, ezért ez az egy sor elég. A korábbi négysoros kerülőmegoldás
+    (`queue:work --once` ciklus és társai) erre a sorra cserélendő.
 
 ---
 

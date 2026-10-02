@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Queue\SignalSafeWorker;
 use Carbon\CarbonImmutable;
+use Illuminate\Queue\Worker;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -14,7 +16,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Rackhost disables pcntl_signal(); see SignalSafeWorker.
+        $this->app->extend('queue.worker', fn (Worker $worker) => SignalSafeWorker::from($worker));
     }
 
     /**

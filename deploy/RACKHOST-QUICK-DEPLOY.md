@@ -32,7 +32,7 @@ Mentés nélkül ne folytasd.
    - `MAIL_SCHEME=smtp` 587-es porthoz, vagy `smtps` 465-ös porthoz;
    - `APP_ENV=production`, `APP_DEBUG=false`;
    - az eredeti `APP_KEY` változatlan marad.
-   - `APP_TRUSTED_HOST=app.fakt.org.hu`, `SECURITY_REQUIRE_PRIVILEGED_MFA=true`;
+   - `APP_TRUSTED_HOST=app.fakt.org.hu`;
    - `SESSION_LIFETIME=60`, `SESSION_ENCRYPT=true`, `SESSION_SECURE_COOKIE=true`, `SESSION_SAME_SITE=lax`.
 5. Másold át a régi `storage/app/private` **tartalmát** az új core azonos mappájába.
 6. Az új `storage` és `bootstrap/cache` jogosultsága legyen `0755`, szükség esetén `0775`, de soha ne `0777`.
@@ -41,7 +41,7 @@ Mentés nélkül ne folytasd.
 ## 4. Állíts be külön migrációs adatbázis-usert
 
 1. A jelenlegi PHP 7.4 rendszer adatbázis-userét ne módosítsd.
-2. Hozz létre `nxt02408_faktdeploy` usert ideiglenes All Privileges joggal.
+2. Hozz létre `nxt02408_faktdep` usert ideiglenes All Privileges joggal.
 3. Hozz létre `nxt02408_faktruntime` usert kizárólag `SELECT`, `INSERT`, `UPDATE`, `DELETE` joggal.
 4. A `fakt-app-core-next/.env` először a deploy usert használja. A két jelszó különböző legyen.
 

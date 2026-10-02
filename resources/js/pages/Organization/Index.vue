@@ -37,6 +37,7 @@ const props = defineProps<{
     members: Person[];
     canAdmin: boolean;
     managedUnitIds: number[];
+    appointableTeamIds: number[];
     managedProjectIds: number[];
 }>();
 const portfolios = computed(() =>
@@ -46,6 +47,12 @@ const teamsFor = (portfolioId: number) =>
     props.units.filter((unit) => unit.parent_id === portfolioId);
 const canManage = (unitId: number) =>
     props.canAdmin || props.managedUnitIds.includes(unitId);
+// Mirrors the server rules: the Elnök appoints every Alelnök; the Elnök or the
+// portfolio's Alelnök appoints a Teamvezető. The server re-checks both.
+const canAppointTeamLeader = (teamId: number) =>
+    props.appointableTeamIds.includes(teamId);
+const leaderOf = (unit: Unit, role: string) =>
+    unit.roles.find((assignment) => assignment.role === role);
 // Server-side AccessScope::managesProject is the real guard; this only hides controls.
 const canManageProject = (projectId: number) =>
     props.managedProjectIds.includes(projectId);
@@ -73,12 +80,6 @@ const day = (value?: string | null) => {
         day: 'numeric',
     }).format(new Date(year, month - 1, date));
 };
-const roleLabel = (role: string) =>
-    ({
-        president: 'Elnök',
-        vice_president: 'Alelnök',
-        team_leader: 'Teamvezető',
-    })[role] ?? role;
 </script>
 
 <template>
@@ -104,18 +105,81 @@ const roleLabel = (role: string) =>
                     <h2 class="mt-1 text-lg font-bold">{{ portfolio.name }}</h2>
                 </div>
                 <div
-                    v-for="role in portfolio.roles"
-                    :key="role.id"
+                    v-if="leaderOf(portfolio, 'vice_president')"
                     class="flex items-center gap-3 rounded-xl bg-muted px-4 py-3"
                 >
                     <Crown class="size-5 text-primary" />
                     <div>
-                        <p class="text-xs text-muted-foreground">
-                            {{ roleLabel(role.role) }}
+                        <p class="text-xs text-muted-foreground">Alelnök</p>
+                        <p class="font-semibold">
+                            {{
+                                leaderOf(portfolio, 'vice_president')!.user.name
+                            }}
                         </p>
-                        <p class="font-semibold">{{ role.user.name }}</p>
                     </div>
+                    <Form
+                        v-if="canAdmin"
+                        :action="`/szervezet/kinevezes/${leaderOf(portfolio, 'vice_president')!.id}/visszavonas`"
+                        method="patch"
+                        v-slot="{ processing }"
+                    >
+                        <Button
+                            type="submit"
+                            variant="ghost"
+                            size="icon-sm"
+                            :aria-label="`${leaderOf(portfolio, 'vice_president')!.user.name} alelnöki kinevezésének visszavonása`"
+                            :disabled="processing"
+                            ><X class="size-4"
+                        /></Button>
+                    </Form>
                 </div>
+                <Form
+                    v-else-if="canAdmin"
+                    action="/szervezet/kinevezes"
+                    method="post"
+                    reset-on-success
+                    class="grid gap-1"
+                    v-slot="{ errors, processing }"
+                >
+                    <input type="hidden" name="role" value="vice_president" />
+                    <input
+                        type="hidden"
+                        name="org_unit_id"
+                        :value="portfolio.id"
+                    />
+                    <label :for="`vp-${portfolio.id}`" class="fakt-label"
+                        >Alelnök kinevezése</label
+                    >
+                    <div class="flex gap-2">
+                        <select
+                            :id="`vp-${portfolio.id}`"
+                            name="user_id"
+                            class="fakt-input min-w-0"
+                            required
+                        >
+                            <option value="">Válassz tagot…</option>
+                            <option
+                                v-for="member in members"
+                                :key="member.id"
+                                :value="member.id"
+                            >
+                                {{ member.name }}
+                            </option>
+                        </select>
+                        <Button type="submit" :disabled="processing"
+                            >Kinevezés</Button
+                        >
+                    </div>
+                    <p
+                        v-if="errors.user_id"
+                        class="max-w-xs text-small text-destructive"
+                    >
+                        {{ errors.user_id }}
+                    </p>
+                </Form>
+                <p v-else class="text-small text-muted-foreground">
+                    Alelnök: betöltetlen
+                </p>
             </div>
             <div class="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
                 <article
@@ -131,14 +195,80 @@ const roleLabel = (role: string) =>
                         <h3 class="font-bold">{{ team.name }}</h3>
                     </div>
                     <div
-                        v-if="team.roles.length"
-                        class="mb-4 rounded-lg bg-muted/70 p-3"
+                        v-if="leaderOf(team, 'team_leader')"
+                        class="mb-4 flex items-center justify-between gap-2 rounded-lg bg-muted/70 p-3"
                     >
-                        <p class="text-xs text-muted-foreground">Teamvezető</p>
-                        <p class="mt-1 font-semibold">
-                            {{ team.roles[0].user.name }}
-                        </p>
+                        <div>
+                            <p class="text-xs text-muted-foreground">
+                                Teamvezető
+                            </p>
+                            <p class="mt-1 font-semibold">
+                                {{ leaderOf(team, 'team_leader')!.user.name }}
+                            </p>
+                        </div>
+                        <Form
+                            v-if="canAppointTeamLeader(team.id)"
+                            :action="`/szervezet/kinevezes/${leaderOf(team, 'team_leader')!.id}/visszavonas`"
+                            method="patch"
+                            v-slot="{ processing }"
+                        >
+                            <Button
+                                type="submit"
+                                variant="ghost"
+                                size="icon-sm"
+                                :aria-label="`${leaderOf(team, 'team_leader')!.user.name} teamvezetői kinevezésének visszavonása`"
+                                :disabled="processing"
+                                ><X class="size-4"
+                            /></Button>
+                        </Form>
                     </div>
+                    <Form
+                        v-else-if="canAppointTeamLeader(team.id)"
+                        action="/szervezet/kinevezes"
+                        method="post"
+                        reset-on-success
+                        class="mb-4 grid gap-1 rounded-lg border border-dashed p-3"
+                        v-slot="{ errors, processing }"
+                    >
+                        <input type="hidden" name="role" value="team_leader" />
+                        <input
+                            type="hidden"
+                            name="org_unit_id"
+                            :value="team.id"
+                        />
+                        <label :for="`tl-${team.id}`" class="fakt-label"
+                            >Teamvezető kinevezése</label
+                        >
+                        <div class="flex gap-2">
+                            <select
+                                :id="`tl-${team.id}`"
+                                name="user_id"
+                                class="fakt-input min-w-0"
+                                required
+                            >
+                                <option value="">Válassz tagot…</option>
+                                <option
+                                    v-for="member in members"
+                                    :key="member.id"
+                                    :value="member.id"
+                                >
+                                    {{ member.name }}
+                                </option>
+                            </select>
+                            <Button type="submit" :disabled="processing"
+                                >Kinevezés</Button
+                            >
+                        </div>
+                        <p
+                            v-if="errors.user_id"
+                            class="text-small text-destructive"
+                        >
+                            {{ errors.user_id }}
+                        </p>
+                    </Form>
+                    <p v-else class="mb-4 text-small text-muted-foreground">
+                        Teamvezető: betöltetlen
+                    </p>
                     <p
                         class="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
                     >

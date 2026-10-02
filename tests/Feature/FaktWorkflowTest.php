@@ -138,7 +138,9 @@ class FaktWorkflowTest extends TestCase
     public function test_only_president_can_appoint_a_vice_president(): void
     {
         $candidate = $this->member('Jelölt');
-        $payload = ['user_id' => $candidate->id, 'org_unit_id' => $this->portfolio->id, 'role' => 'vice_president'];
+        // A vacant portfolio: the Szakmaiság one already has an Alelnök.
+        $vacantPortfolio = OrgUnit::query()->create(['semester_id' => $this->semester->id, 'type' => 'portfolio', 'name' => 'Pénzügy', 'slug' => 'penzugy']);
+        $payload = ['user_id' => $candidate->id, 'org_unit_id' => $vacantPortfolio->id, 'role' => 'vice_president'];
 
         $this->actingAs($this->member)->withSession(['auth.password_confirmed_at' => time()])->post(route('organization.appoint'), $payload)->assertForbidden();
         $this->actingAs($this->president)->withSession(['auth.password_confirmed_at' => time()])->post(route('organization.appoint'), $payload)->assertRedirect();

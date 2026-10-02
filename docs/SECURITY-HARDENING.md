@@ -61,7 +61,7 @@ Az inputminta-ellenőrzés kiegészítő tripwire; az elsődleges SQL-védelem a
 
 Két külön cPanel MySQL felhasználó ajánlott:
 
-1. `*_faktdeploy`: kizárólag a karbantartási ablakban, migrációhoz szükséges DDL+DML jogokkal;
+1. `*_faktdep`: kizárólag a karbantartási ablakban, migrációhoz szükséges DDL+DML jogokkal;
 2. `*_faktruntime`: folyamatos futáshoz csak `SELECT`, `INSERT`, `UPDATE`, `DELETE`.
 
 Folyamat: mentés → `.env` ideiglenesen deploy user → `migrate --force` → `.env` runtime user → `optimize:clear && optimize` → deploy user eltávolítása az adatbázisból. Az alkalmazás runtime userének soha ne adj `ALL PRIVILEGES`, `DROP`, `ALTER`, `CREATE`, `INDEX`, `FILE`, `PROCESS`, `GRANT` vagy más adminjogot.

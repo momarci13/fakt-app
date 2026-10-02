@@ -49,7 +49,6 @@ if (! is_file($envPath) || ! is_readable($envPath)) {
         'SESSION_ENCRYPT' => 'true',
         'SESSION_SECURE_COOKIE' => 'true',
         'SESSION_SAME_SITE' => 'lax',
-        'SECURITY_REQUIRE_PRIVILEGED_MFA' => 'true',
     ];
     foreach ($requiredValues as $key => $expected) {
         if (strtolower((string) ($env[$key] ?? '')) !== strtolower($expected)) {

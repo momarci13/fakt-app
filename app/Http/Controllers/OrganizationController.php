@@ -13,6 +13,7 @@ use App\Support\Audit;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -32,6 +33,13 @@ class OrganizationController extends Controller
             'members' => User::query()->where('approval_status', 'approved')->with('profile')->orderBy('name')->get(['id', 'name', 'email']),
             'canAdmin' => $request->user()->isPresident(),
             'managedUnitIds' => $request->user()->managedOrgUnitIds(),
+            // Teams whose Teamvezető this user may appoint or revoke.
+            'appointableTeamIds' => $units
+                ->where('type', 'team')
+                ->filter(fn (OrgUnit $team) => AccessScope::appointsTeamLeader($request->user(), $team))
+                ->pluck('id')
+                ->sort()
+                ->values(),
             // The Elnök manages every Projekt; a Projektvezető manages their own.
             'managedProjectIds' => $request->user()->isPresident()
                 ? Project::query()->where('semester_id', $semester?->id)->pluck('id')
@@ -60,8 +68,26 @@ class OrganizationController extends Controller
         if ($data['role'] === 'vice_president' && ! $actor->isPresident()) {
             abort(403);
         }
-        if ($data['role'] === 'team_leader' && ! AccessScope::managesUnit($actor, $data['org_unit_id'])) {
+        if ($data['role'] === 'team_leader' && ! AccessScope::appointsTeamLeader($actor, $unit)) {
             abort(403);
+        }
+
+        // One Alelnök per portfolio and one Teamvezető per Team (SZMSZ 12.2-12.3).
+        // A replacement starts with revoking the current holder.
+        $holder = RoleAssignment::query()
+            ->where('semester_id', $semester->id)
+            ->where('org_unit_id', $unit->id)
+            ->where('role', $data['role'])
+            ->whereNull('revoked_at')
+            ->where(fn ($query) => $query->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()))
+            ->with('user:id,name')
+            ->first();
+        if ($holder) {
+            throw ValidationException::withMessages([
+                'user_id' => ($data['role'] === 'vice_president' ? 'Ennek a portfóliónak' : 'Ennek a Teamnek')
+                    .' már van '.($data['role'] === 'vice_president' ? 'alelnöke' : 'teamvezetője')
+                    .' ('.$holder->user->name.'). Előbb vond vissza a kinevezését.',
+            ]);
         }
 
         $role = RoleAssignment::query()->create(array_merge($data, ['semester_id' => $semester->id, 'appointed_by' => $actor->id, 'starts_at' => now()->isAfter($semester->starts_at) ? now()->toDateString() : $semester->starts_at->toDateString(), 'ends_at' => $semester->ends_at]));
@@ -77,7 +103,9 @@ class OrganizationController extends Controller
         if ($roleAssignment->role === 'vice_president' && ! $actor->isPresident()) {
             abort(403);
         }
-        if ($roleAssignment->role !== 'vice_president' && ! AccessScope::managesUnit($actor, $roleAssignment->org_unit_id)) {
+        if ($roleAssignment->role === 'team_leader') {
+            abort_unless($roleAssignment->orgUnit && AccessScope::appointsTeamLeader($actor, $roleAssignment->orgUnit), 403);
+        } elseif ($roleAssignment->role !== 'vice_president' && ! AccessScope::managesUnit($actor, $roleAssignment->org_unit_id)) {
             abort(403);
         }
 
