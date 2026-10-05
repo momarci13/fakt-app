@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
 import {
+    Activity,
     BookOpen,
     CalendarDays,
+    Contact,
+    Gauge,
+    HandHeart,
     CheckSquare2,
     FileText,
     GraduationCap,
@@ -39,15 +43,33 @@ const mainNavItems: NavItem[] = [
     { title: 'Dokumentumok', href: '/dokumentumok', icon: FileText },
     { title: 'Szervezet', href: '/szervezet', icon: Network },
     { title: 'Tagi életút', href: '/eletut', icon: GraduationCap },
+    { title: 'Tagnévsor', href: '/tagok', icon: Contact },
+    { title: 'Felmentések', href: '/felmentesek', icon: HandHeart },
     { title: 'Alumni és mentorok', href: '/alumni', icon: UsersRound },
 ];
+const abilities = (page.props.auth as any)?.abilities ?? {};
 
-if ((page.props.auth as any)?.abilities?.isPresident) {
-    mainNavItems.push({
-        title: 'Adminisztráció',
-        href: '/admin',
-        icon: Settings2,
+if (abilities.isLeader) {
+    mainNavItems.splice(3, 0, {
+        title: 'Vezetői áttekintés',
+        href: '/vezetoi-attekintes',
+        icon: Gauge,
     });
+}
+
+if (abilities.isPresident) {
+    mainNavItems.push(
+        {
+            title: 'Adminisztráció',
+            href: '/admin',
+            icon: Settings2,
+        },
+        {
+            title: 'Rendszerállapot',
+            href: '/admin/rendszer',
+            icon: Activity,
+        },
+    );
 }
 
 const footerNavItems: NavItem[] = [

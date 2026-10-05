@@ -71,7 +71,8 @@ class CreateNewUser implements CreatesNewUsers
                 ->each->notify(new FaktNotification(
                     'Új regisztrációs kérelem',
                     $user->name.' jóváhagyásra vár.',
-                    '/admin#regisztraciok'
+                    '/admin#regisztraciok',
+                    true
                 ));
         }
 

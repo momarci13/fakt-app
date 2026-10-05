@@ -2,11 +2,19 @@
 import { Form, Head, usePage } from '@inertiajs/vue3';
 import {
     CalendarPlus,
+    ChevronLeft,
+    ChevronRight,
     Copy,
+    Download,
     ExternalLink,
+    LayoutGrid,
+    List,
     MapPin,
+    QrCode,
     RotateCw,
+    Sheet,
 } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import FaktPageHeader from '@/components/FaktPageHeader.vue';
 import StatusPill from '@/components/StatusPill.vue';
 import { Button } from '@/components/ui/button';
@@ -29,8 +37,13 @@ type EventItem = {
     participant_count?: number;
     attendances: { rsvp_status: string; final_status?: string }[];
     org_unit?: { name: string; color: string };
+    status: string;
+    course_offering_id?: number;
+    project_id?: number;
+    enrollment_status?: string | null;
+    can_manage: boolean;
 };
-defineProps<{
+const props = defineProps<{
     events: EventItem[];
     canCreate: boolean;
     calendarUrl?: string;
@@ -51,6 +64,98 @@ const copy = async (value?: string) => {
         await navigator.clipboard.writeText(value);
     }
 };
+
+const view = ref<'list' | 'month'>('list');
+const filters = ref({
+    category: 'all',
+    requiredOnly: false,
+    upcomingOnly: true,
+});
+const category = (event: EventItem) =>
+    event.course_offering_id
+        ? 'course'
+        : event.project_id
+          ? 'project'
+          : event.org_unit
+            ? 'team'
+            : 'org';
+const categories = [
+    { value: 'all', label: 'Minden' },
+    { value: 'course', label: 'Kurzusok' },
+    { value: 'team', label: 'Team' },
+    { value: 'project', label: 'Projekt' },
+    { value: 'org', label: 'Szervezeti' },
+];
+const filtered = computed(() =>
+    props.events.filter(
+        (event) =>
+            (filters.value.category === 'all' ||
+                category(event) === filters.value.category) &&
+            (!filters.value.requiredOnly || event.obligation === 'required') &&
+            (view.value === 'month' ||
+                !filters.value.upcomingOnly ||
+                new Date(event.ends_at) >= new Date()),
+    ),
+);
+
+const month = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+const monthLabel = computed(() =>
+    new Intl.DateTimeFormat('hu-HU', { year: 'numeric', month: 'long' }).format(
+        month.value,
+    ),
+);
+const shiftMonth = (delta: number) => {
+    month.value = new Date(
+        month.value.getFullYear(),
+        month.value.getMonth() + delta,
+        1,
+    );
+};
+const dayKey = (value: Date) =>
+    `${value.getFullYear()}-${value.getMonth()}-${value.getDate()}`;
+// Monday-first grid of 6 weeks covering the month.
+const gridDays = computed(() => {
+    const first = month.value;
+    const offset = (first.getDay() + 6) % 7;
+    const start = new Date(first.getFullYear(), first.getMonth(), 1 - offset);
+
+    return Array.from(
+        { length: 42 },
+        (_, index) =>
+            new Date(
+                start.getFullYear(),
+                start.getMonth(),
+                start.getDate() + index,
+            ),
+    );
+});
+const eventsByDay = computed(() => {
+    const map = new Map<string, EventItem[]>();
+
+    for (const event of filtered.value) {
+        const key = dayKey(new Date(event.starts_at));
+        map.set(key, [...(map.get(key) ?? []), event]);
+    }
+
+    return map;
+});
+const isToday = (value: Date) => dayKey(value) === dayKey(new Date());
+const weekdays = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V'];
+
+const utcStamp = (value: string) =>
+    new Date(value)
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
+const googleUrl = (event: EventItem) =>
+    'https://calendar.google.com/calendar/render?' +
+    new URLSearchParams({
+        action: 'TEMPLATE',
+        text: event.title,
+        dates: `${utcStamp(event.starts_at)}/${utcStamp(event.ends_at)}`,
+        location: event.location ?? '',
+        details: event.description ?? '',
+    }).toString();
 </script>
 
 <template>
@@ -136,15 +241,146 @@ const copy = async (value?: string) => {
 
         <section class="grid gap-6 xl:grid-cols-[1fr_20rem]">
             <div class="fakt-panel overflow-hidden">
-                <div class="border-b px-5 py-4">
-                    <p class="font-semibold">Következő események</p>
-                    <p class="text-sm text-muted-foreground">
-                        Europe/Budapest időzóna
-                    </p>
+                <div
+                    class="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4"
+                >
+                    <div>
+                        <p class="font-semibold">
+                            {{
+                                view === 'list'
+                                    ? 'Következő események'
+                                    : monthLabel
+                            }}
+                        </p>
+                        <p class="text-sm text-muted-foreground">
+                            Europe/Budapest időzóna
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select
+                            v-model="filters.category"
+                            class="fakt-input h-9 w-auto"
+                            aria-label="Típus szűrése"
+                        >
+                            <option
+                                v-for="item in categories"
+                                :key="item.value"
+                                :value="item.value"
+                            >
+                                {{ item.label }}
+                            </option>
+                        </select>
+                        <label class="flex items-center gap-1.5 text-xs"
+                            ><input
+                                v-model="filters.requiredOnly"
+                                type="checkbox"
+                                class="size-4"
+                            />Csak kötelező</label
+                        >
+                        <label
+                            v-if="view === 'list'"
+                            class="flex items-center gap-1.5 text-xs"
+                            ><input
+                                v-model="filters.upcomingOnly"
+                                type="checkbox"
+                                class="size-4"
+                            />Csak közelgő</label
+                        >
+                        <div class="flex rounded-lg bg-muted p-1">
+                            <button
+                                type="button"
+                                class="rounded-md p-1.5"
+                                :class="
+                                    view === 'list' && 'bg-background shadow'
+                                "
+                                aria-label="Lista nézet"
+                                @click="view = 'list'"
+                            >
+                                <List class="size-4" />
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-md p-1.5"
+                                :class="
+                                    view === 'month' && 'bg-background shadow'
+                                "
+                                aria-label="Havi nézet"
+                                @click="view = 'month'"
+                            >
+                                <LayoutGrid class="size-4" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="divide-y">
+                <div v-if="view === 'month'" class="p-3 sm:p-5">
+                    <div class="mb-3 flex items-center justify-between">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Előző hónap"
+                            @click="shiftMonth(-1)"
+                            ><ChevronLeft class="size-4"
+                        /></Button>
+                        <p class="font-semibold capitalize">{{ monthLabel }}</p>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Következő hónap"
+                            @click="shiftMonth(1)"
+                            ><ChevronRight class="size-4"
+                        /></Button>
+                    </div>
+                    <div
+                        class="grid grid-cols-7 gap-px overflow-hidden rounded-xl border bg-border text-xs"
+                    >
+                        <div
+                            v-for="weekday in weekdays"
+                            :key="weekday"
+                            class="bg-muted p-1.5 text-center font-semibold"
+                        >
+                            {{ weekday }}
+                        </div>
+                        <div
+                            v-for="dayItem in gridDays"
+                            :key="dayKey(dayItem)"
+                            class="min-h-16 bg-background p-1 sm:min-h-24"
+                            :class="
+                                dayItem.getMonth() !== month.getMonth() &&
+                                'opacity-40'
+                            "
+                        >
+                            <p
+                                class="mb-1 inline-grid size-6 place-items-center rounded-full"
+                                :class="
+                                    isToday(dayItem) &&
+                                    'bg-primary font-bold text-primary-foreground'
+                                "
+                            >
+                                {{ dayItem.getDate() }}
+                            </p>
+                            <p
+                                v-for="item in eventsByDay.get(
+                                    dayKey(dayItem),
+                                ) ?? []"
+                                :key="item.id"
+                                class="mb-0.5 truncate rounded px-1 py-0.5"
+                                :class="[
+                                    item.obligation === 'required'
+                                        ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100'
+                                        : 'bg-primary/10 text-primary',
+                                    item.status === 'cancelled' &&
+                                        'line-through opacity-60',
+                                ]"
+                                :title="`${time(item.starts_at)} ${item.title}`"
+                            >
+                                {{ time(item.starts_at) }} {{ item.title }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div v-else class="divide-y">
                     <article
-                        v-for="event in events"
+                        v-for="event in filtered"
                         :key="event.id"
                         class="grid grid-cols-[4rem_1fr] gap-4 p-4 sm:grid-cols-[5rem_1fr_auto] sm:p-5"
                     >
@@ -161,8 +397,26 @@ const copy = async (value?: string) => {
                         </div>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <h2 class="font-bold">{{ event.title }}</h2>
+                                <h2
+                                    class="font-bold"
+                                    :class="
+                                        event.status === 'cancelled' &&
+                                        'line-through'
+                                    "
+                                >
+                                    {{ event.title }}
+                                </h2>
                                 <StatusPill :value="event.obligation" />
+                                <StatusPill
+                                    v-if="event.status === 'cancelled'"
+                                    value="cancelled"
+                                />
+                                <StatusPill
+                                    v-if="
+                                        event.enrollment_status === 'waitlisted'
+                                    "
+                                    value="waitlisted"
+                                />
                             </div>
                             <p
                                 v-if="event.description"
@@ -180,6 +434,34 @@ const copy = async (value?: string) => {
                                 · {{ time(event.starts_at) }}–{{
                                     time(event.ends_at)
                                 }}
+                            </p>
+                            <p
+                                class="mt-2 flex flex-wrap gap-3 text-xs font-semibold text-primary"
+                            >
+                                <a
+                                    :href="googleUrl(event)"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-1"
+                                    ><ExternalLink class="size-3.5" />Google
+                                    Naptár</a
+                                ><a
+                                    :href="`/naptar/esemenyek/${event.id}/esemeny.ics`"
+                                    class="inline-flex items-center gap-1"
+                                    ><Download class="size-3.5" />.ics</a
+                                ><template v-if="event.can_manage"
+                                    ><a
+                                        :href="`/naptar/esemenyek/${event.id}/qr`"
+                                        class="inline-flex items-center gap-1"
+                                        ><QrCode class="size-3.5" />QR
+                                        bejelentkezés</a
+                                    ><a
+                                        :href="`/naptar/esemenyek/${event.id}/jelenleti-iv.csv`"
+                                        class="inline-flex items-center gap-1"
+                                        ><Sheet class="size-3.5" />Jelenléti
+                                        ív</a
+                                    ></template
+                                >
                             </p>
                             <p
                                 v-if="event.attendances[0]?.final_status"
@@ -325,12 +607,7 @@ const copy = async (value?: string) => {
                                     ></Form
                                 >
                             </details>
-                            <details
-                                v-if="
-                                    canCreate &&
-                                    event.organizer_id === currentUserId
-                                "
-                            >
+                            <details v-if="event.can_manage">
                                 <summary
                                     class="cursor-pointer text-center text-xs font-semibold text-primary"
                                 >
@@ -374,7 +651,7 @@ const copy = async (value?: string) => {
                         </div>
                     </article>
                     <p
-                        v-if="!events.length"
+                        v-if="!filtered.length"
                         class="p-10 text-center text-sm text-muted-foreground"
                     >
                         A naptárad még üres.

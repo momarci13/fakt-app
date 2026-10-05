@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\SecurityController;
 use Illuminate\Auth\Middleware\RequirePassword;
@@ -10,6 +11,7 @@ Route::middleware(['auth', 'approved'])->group(function () {
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->middleware('throttle:mutations')->name('profile.update');
+    Route::patch('settings/ertesitesek', [NotificationController::class, 'preferences'])->middleware('throttle:mutations')->name('notifications.preferences');
 });
 
 Route::middleware(['auth', 'approved', 'verified'])->group(function () {

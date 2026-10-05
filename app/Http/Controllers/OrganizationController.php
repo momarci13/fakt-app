@@ -10,6 +10,7 @@ use App\Models\TeamMembership;
 use App\Models\User;
 use App\Support\AccessScope;
 use App\Support\Audit;
+use App\Support\Mandate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -90,7 +91,9 @@ class OrganizationController extends Controller
             ]);
         }
 
-        $role = RoleAssignment::query()->create(array_merge($data, ['semester_id' => $semester->id, 'appointed_by' => $actor->id, 'starts_at' => now()->isAfter($semester->starts_at) ? now()->toDateString() : $semester->starts_at->toDateString(), 'ends_at' => $semester->ends_at]));
+        $startsAt = now()->isAfter($semester->starts_at) ? today() : $semester->starts_at;
+        // Mandates: Alelnök to 30 June, Teamvezető to the end of the half-year.
+        $role = RoleAssignment::query()->create(array_merge($data, ['semester_id' => $semester->id, 'appointed_by' => $actor->id, 'starts_at' => $startsAt->toDateString(), 'ends_at' => Mandate::endFor($data['role'], $startsAt)?->toDateString()]));
         Audit::record($role, 'appointed');
 
         return back()->with('success', 'A kinevezés rögzítve.');

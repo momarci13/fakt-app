@@ -5,6 +5,7 @@ namespace App\Console;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 
 class Kernel extends ConsoleKernel
 {
@@ -29,6 +30,12 @@ class Kernel extends ConsoleKernel
         $this->inProcess($schedule, 'fakt:recurring-tasks')->everyTenMinutes()->withoutOverlapping(30, false);
         $this->inProcess($schedule, 'fakt:due-reminders')->dailyAt('08:00')->withoutOverlapping(120, false);
         $this->inProcess($schedule, 'fakt:retention')->dailyAt('03:20')->withoutOverlapping(240, false);
+        $this->inProcess($schedule, 'fakt:daily-digest')->dailyAt('07:30')->withoutOverlapping(60, false);
+
+        // Heartbeat for Admin → Rendszerállapot: proves the cron line runs.
+        $schedule->call(fn () => Cache::forever('fakt:scheduler:last_tick', now()->toIso8601String()))
+            ->everyMinute()
+            ->name('fakt:scheduler-heartbeat');
     }
 
     /**

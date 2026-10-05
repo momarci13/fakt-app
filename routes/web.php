@@ -7,10 +7,14 @@ use App\Http\Controllers\CalendarFeedController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\LeaderOverviewController;
 use App\Http\Controllers\LifecycleController;
+use App\Http\Controllers\MemberDirectoryController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\SystemController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\WaiverController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Http\Controllers\AuthenticatedSessionController;
 
@@ -43,6 +47,10 @@ Route::middleware(['auth', 'approved', 'verified'])->group(function () {
     Route::get('kurzusok', [CourseController::class, 'index'])->name('courses.index');
     Route::post('kurzusok', [CourseController::class, 'store'])->middleware('throttle:mutations')->name('courses.store');
     Route::post('kurzusok/{course}/jelentkezes', [CourseController::class, 'request'])->middleware('throttle:mutations')->name('courses.request');
+    Route::post('kurzusok/{course}/idopont-szavazas', [CourseController::class, 'voteDate'])->middleware('throttle:mutations')->name('courses.dates.vote');
+    Route::post('kurzusok/{course}/idopont', [CourseController::class, 'fixDate'])->middleware('throttle:mutations')->name('courses.dates.fix');
+    Route::post('kurzusok/beosztas', [CourseController::class, 'applyPlacement'])->middleware(['throttle:sensitive', 'password.confirm'])->name('courses.placement.apply');
+    Route::get('kurzusok/{course}/nevsor.csv', [CourseController::class, 'roster'])->name('courses.roster');
     Route::patch('kurzusjelentkezesek/{enrollment}/elbiras', [CourseController::class, 'review'])->middleware('throttle:mutations')->name('courses.review');
 
     Route::get('naptar', [CalendarController::class, 'index'])->name('calendar.index');
@@ -50,6 +58,11 @@ Route::middleware(['auth', 'approved', 'verified'])->group(function () {
     Route::put('naptar/esemenyek/{event}/visszajelzes', [CalendarController::class, 'rsvp'])->middleware('throttle:mutations')->name('calendar.rsvp');
     Route::patch('naptar/esemenyek/{event}/jelenlet', [CalendarController::class, 'finalize'])->middleware('throttle:mutations')->name('calendar.finalize');
     Route::patch('naptar/esemenyek/{event}/jegyzokonyv', [CalendarController::class, 'updateMeeting'])->middleware('throttle:mutations')->name('calendar.meeting.update');
+    Route::get('naptar/esemenyek/{event}/esemeny.ics', [CalendarController::class, 'download'])->name('calendar.events.download');
+    Route::get('naptar/esemenyek/{event}/jelenleti-iv.csv', [CalendarController::class, 'attendanceSheet'])->name('calendar.events.attendance');
+    Route::get('naptar/esemenyek/{event}/qr', [CalendarController::class, 'checkInScreen'])->name('calendar.checkin.screen');
+    Route::get('naptar/bejelentkezes/{event}/{code}', [CalendarController::class, 'checkInConfirm'])->where('code', '[a-f0-9]{10}')->name('calendar.checkin.show');
+    Route::post('naptar/bejelentkezes/{event}/{code}', [CalendarController::class, 'checkIn'])->where('code', '[a-f0-9]{10}')->middleware('throttle:mutations')->name('calendar.checkin.store');
     Route::post('naptar/token', [CalendarController::class, 'rotateToken'])->middleware(['throttle:sensitive', 'password.confirm'])->name('calendar.token.rotate');
 
     Route::get('feladatok', [TaskController::class, 'index'])->name('tasks.index');
@@ -62,16 +75,30 @@ Route::middleware(['auth', 'approved', 'verified'])->group(function () {
     Route::get('eletut/kerelmek/{memberRequest}/bizonyitek', [LifecycleController::class, 'downloadEvidence'])->name('lifecycle.evidence.download');
     Route::post('eletut/eredmenyek', [LifecycleController::class, 'addProgress'])->middleware('throttle:mutations')->name('lifecycle.progress.store');
 
+    Route::get('felmentesek', [WaiverController::class, 'index'])->name('waivers.index');
+    Route::post('felmentesek', [WaiverController::class, 'store'])->middleware('throttle:mutations')->name('waivers.store');
+    Route::post('felmentesek/{waiver}/szavazat', [WaiverController::class, 'vote'])->middleware(['throttle:sensitive', 'password.confirm'])->name('waivers.vote');
+
     Route::get('alumni', [AlumniController::class, 'index'])->name('alumni.index');
     Route::post('alumni/mentor', [AlumniController::class, 'requestMentor'])->middleware('throttle:mutations')->name('alumni.mentor.request');
 
+    Route::get('tagok', MemberDirectoryController::class)->name('members.index');
+    Route::get('vezetoi-attekintes', LeaderOverviewController::class)->name('leader.index');
+
     Route::get('admin', [AdminController::class, 'index'])->name('admin.index');
+    Route::get('admin/rendszer', [SystemController::class, 'index'])->name('admin.system');
+    Route::get('admin/export/tagok.csv', [SystemController::class, 'exportMembers'])->middleware('password.confirm')->name('admin.export.members');
+    Route::post('admin/rendszer/tesztlevel', [SystemController::class, 'testMail'])->middleware('throttle:sensitive')->name('admin.system.mail');
     Route::middleware(['throttle:sensitive', 'password.confirm'])->group(function () {
         Route::post('admin/meghivok', [AdminController::class, 'invite'])->name('admin.invite');
         Route::post('admin/importok', [AdminController::class, 'stageMemberImport'])->middleware('throttle:uploads')->name('admin.imports.stage');
         Route::post('admin/importok/{importBatch}/alkalmazas', [AdminController::class, 'applyMemberImport'])->name('admin.imports.apply');
         Route::post('admin/importok/{importBatch}/visszavonas', [AdminController::class, 'rollbackMemberImport'])->name('admin.imports.rollback');
         Route::post('admin/felevek', [AdminController::class, 'storeSemester'])->name('admin.semesters.store');
+        Route::patch('admin/felevek/{semester}', [AdminController::class, 'updateSemester'])->name('admin.semesters.update');
+        Route::post('admin/felevek/{semester}/aktivalas', [AdminController::class, 'activateSemester'])->name('admin.semesters.activate');
+        Route::post('admin/felevek/{semester}/elnok', [AdminController::class, 'appointNextPresident'])->name('admin.semesters.president');
+        Route::patch('admin/felevek/{semester}/elnok/{roleAssignment}/visszavonas', [AdminController::class, 'revokeNextPresident'])->name('admin.semesters.president.revoke');
         Route::post('admin/szabalyok', [AdminController::class, 'storeRule'])->name('admin.rules.store');
         Route::post('admin/szabalyok/publikalas', [AdminController::class, 'publishRules'])->name('admin.rules.publish');
         Route::post('admin/kozlemenyek', [AdminController::class, 'announce'])->name('admin.announcements.store');

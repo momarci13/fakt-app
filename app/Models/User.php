@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\RequestMemo;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -47,6 +48,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'approved_at',
         'rejected_at',
         'rejection_reason',
+        'notification_mode',
+        'digest_sent_at',
     ];
 
     protected $hidden = [
@@ -67,6 +70,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'last_seen_at' => 'datetime',
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'digest_sent_at' => 'datetime',
     ];
 
     /** @return HasOne<MemberProfile, $this> */
@@ -110,17 +114,43 @@ class User extends Authenticatable implements MustVerifyEmail
             return collect();
         }
 
-        return $this->roles()
+        return $this->activeRoleAssignments($semesterId)->pluck('role')->values();
+    }
+
+    /**
+     * Active role assignments in a semester, read once per request.
+     *
+     * @return Collection<int, RoleAssignment>
+     */
+    public function activeRoleAssignments(?int $semesterId = null): Collection
+    {
+        if ($semesterId === null) {
+            $semesterId = Semester::active()?->id;
+        }
+
+        if (! $semesterId) {
+            return collect();
+        }
+
+        return RequestMemo::remember("roles:{$this->id}:{$semesterId}", fn () => $this->roles()
+            ->with('orgUnit.children')
             ->where('semester_id', $semesterId)
             ->whereNull('revoked_at')
             ->whereDate('starts_at', '<=', today())
             ->where(fn ($q) => $q->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()))
-            ->pluck('role');
+            ->get());
     }
+
     public function isPresident(): bool
     {
         return $this->activeRoleNames()->contains('president');
     }
+    /** Elnökség: the Elnök and the Alelnökök (SZMSZ). */
+    public function isElnoksegMember(): bool
+    {
+        return $this->activeRoleNames()->intersect(['president', 'vice_president'])->isNotEmpty();
+    }
+
     public function isApproved(): bool
     {
         return $this->approval_status === 'approved';
@@ -135,26 +165,22 @@ class User extends Authenticatable implements MustVerifyEmail
         if (! $semester) {
             return collect();
         }
-        if ($this->isPresident()) {
-            return OrgUnit::query()->where('semester_id', $semester->id)->pluck('id');
-        }
 
-        $roles = $this->roles()
-            ->with('orgUnit.children')
-            ->where('semester_id', $semester->id)
-            ->whereNull('revoked_at')
-            ->whereDate('starts_at', '<=', today())
-            ->where(fn ($query) => $query->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()))
-            ->get();
-
-        return $roles->flatMap(function (RoleAssignment $role) {
-            if (! $role->orgUnit) {
-                return [];
+        return RequestMemo::remember("managed:{$this->id}:{$semester->id}", function () use ($semester) {
+            if ($this->isPresident()) {
+                return OrgUnit::query()->where('semester_id', $semester->id)->pluck('id');
             }
 
-            return $role->role === 'vice_president'
-                ? array_merge([$role->org_unit_id], $role->orgUnit->children->pluck('id')->all())
-                : [$role->org_unit_id];
-        })->unique()->values();
+            return $this->activeRoleAssignments($semester->id)
+                ->flatMap(function (RoleAssignment $role) {
+                    if (! $role->orgUnit) {
+                        return [];
+                    }
+
+                    return $role->role === 'vice_president'
+                        ? array_merge([$role->org_unit_id], $role->orgUnit->children->pluck('id')->all())
+                        : [$role->org_unit_id];
+                })->unique()->values();
+        });
     }
 }

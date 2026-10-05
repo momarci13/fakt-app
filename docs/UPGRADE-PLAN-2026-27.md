@@ -1,8 +1,9 @@
 # FAKT app: all-round upgrade plan (2026/27)
 
-Status: **proposal**. Nothing in this document is built yet. Section 8 lists the decisions
-that are needed before implementation starts. The step-by-step server procedure is in
-`deploy/UPGRADE-DEPLOY-2026-27.md` (Hungarian).
+Status: **Phase 0, Phase 1 and eight Phase 3 features are built** (branch
+`claude/determined-hamilton-bfzi1g`). Section 8 records the decisions they follow, and
+section 9 lists what was built. Phase 2 (delegation changes) was dropped by decision Q3.
+The step-by-step server procedure is in `deploy/UPGRADE-DEPLOY-2026-27.md` (Hungarian).
 
 ---
 
@@ -402,18 +403,76 @@ deploy guide safe.
   - a generated permission matrix test (Phase 2),
   - a rollover test: after activating, the Elnök can still open Admin (Phase 0).
 
-## 8. Open questions (needed before implementation)
+## 8. Decisions (Marci, 2026-10-05)
 
-| # | Question | Default if unanswered |
+| # | Question | Decision | Where it lives |
+|---|---|---|---|
+| Q1 | Mandates | Elnök and Alelnök: **1 July – 30 June**. Teamvezető: **1 July – 31 December** or **1 January – 30 June**. Semesters follow the same halves | `App\Support\Mandate`, `SemesterRollover` |
+| Q2/Q3 | Who sees a course in their calendar | **Approved students and waitlisted members**, once a date is fixed. If there are several possible dates, applicants **vote** (approval voting) and the KTSZT fixes one | `PersonalCalendar::COURSE_CALENDAR_STATUSES`, `CourseController::voteDate/fixDate` |
+| Q4 | Skip-level delegation | **No.** Delegation stays one level down (§3.2, $d = 1$) | unchanged `TaskDelegation` |
+| Q5 | Deputies | Explained below; **not built** | — |
+| Q6 | Placement | Any number of courses per member ($q_i = \infty$), **no** priority group | `CoursePlacement` |
+| Q7/Q8 | Course obligation | A member may miss **2 sessions** per course (configurable per course). Above that, **the whole Elnökség can waive** the obligation | `CourseCompletion`, `ElnoksegWaivers` |
+| Q10 | Features | 8, chosen by Claude: see §9 | |
+| Q11 | October update deploy | **Not done**, Gmail sending works. The new release includes it | `deploy/UPGRADE-DEPLOY-2026-27.md` |
+
+**What a deputy (helyettes) would have been.** A temporary, dated hand-over of some of your
+powers to someone else while you are away, e.g. an Alelnök on Erasmus for a month lets a
+Teamvezető approve things in the portfolio, and it switches off by itself on the end date.
+The rule that keeps it safe is $B \times S \subseteq \operatorname{Ab}(\text{grantor})$: you can only
+lend what you have, and a borrowed power can't be lent on. It is not built; if you want it
+later, it is a self-contained addition (one table, one panel on the Szervezet page).
+
+### 8.1 Mathematics of the two new rules
+
+**Mandate end.** For a role $r$ starting on date $t$ (month $m$, year $y$):
+
+$$\operatorname{end}(r, t) = \begin{cases} (y + \mathbb{1}[m \ge 7])\text{-06-30} & r \in \{\text{Elnök}, \text{Alelnök}\} \\ y\text{-12-31} & r = \text{Teamvezető},\ m \ge 7 \\ y\text{-06-30} & r = \text{Teamvezető},\ m < 7 \end{cases}$$
+
+Activating semester $s'$ carries assignment $a$ iff $\operatorname{end}(a) \ge \operatorname{start}(s')$. So
+autumn → spring carries the Elnök and the Alelnökök but not the Teamvezetők, and spring →
+autumn carries nobody: the outgoing Elnök must name the next Elnök for the new semester first,
+and activation is refused while $\nexists u:\ \text{president} \in r(A_u(s'))$.
+
+**Course completion and the waiver.** Let $S_c$ be the scheduled sessions of course $c$ and
+$a_u = |\{k \in S_c : \text{final}_{u,k} \in \{\text{absent}, \text{excused}\}\}|$. Member $u$
+completes $c$ iff $a_u \le \alpha_c$ (default $\alpha_c = 2$) or a waiver $w$ is approved. With
+$E$ the active Elnökség (Elnök and Alelnökök) and $V = E \setminus \{u\}$ (nobody votes on
+their own case), and votes $v_e \in \{\text{yes}, \text{no}, \bot\}$:
+
+$$\operatorname{status}(w) = \begin{cases} \text{rejected} & \exists e \in V: v_e = \text{no} \\ \text{approved} & V \ne \emptyset \wedge \forall e \in V: v_e = \text{yes} \\ \text{pending} & \text{otherwise.} \end{cases}$$
+
+**Placement with $q_i = \infty$.** The member constraints $\sum_j x_{ij} \le q_i$ never bind, so the
+problem separates into one problem per course: choose at most $\kappa_j' = \kappa_j - |\text{approved}_j|$
+requests minimising $\sum r_{ij}$. Sorting by rank and taking the first $\kappa_j'$ is optimal (an
+exchange argument: swapping a chosen request for an unchosen one with a higher rank can't
+lower the sum). Ties are broken by $\mathrm{SHA256}(\text{seed}\,\|\,\text{id})$, so the proposal is
+reproducible. The min-cost-flow formulation in §3.5 stays the general method if quotas or
+priorities are ever introduced.
+
+**QR check-in.** $\text{code}(e, w) = \mathrm{HMAC}_{k_e}(e \,\|\, w)[0..10)$ with
+$w = \lfloor t / 30\,\text{s} \rfloor$. Accepting $w$ and $w-1$ gives a validity of 30–60 s; a guess
+succeeds with probability $2 \cdot 16^{-10} \approx 1.8 \cdot 10^{-12}$ per try.
+
+## 9. What was built
+
+Measured on the same seeded data as §2.2: the Alelnök's Feladatok page went from **70 to 20
+queries**, and every page reads the active semester at most once. `tests/Feature/QueryBudgetTest.php` keeps it that way.
+
+| Area | Built | Tests |
 |---|---|---|
-| Q1 | **Mandates across semesters.** Is the Vezetőség elected for a year (two semesters) or per semester? Which roles carry over automatically at rollover? | Elnök, Alelnök, Teamvezető, KTSZT carry over; Team memberships and Projekts are asked per item |
-| Q2 | **"Assigned to a course"** means which people? (a) approved students, (b) instructors and helpers who are members, (c) the KTSZT member in charge, (d) all of these | (d) |
-| Q3 | Should **waitlisted** members see the course in their calendar, e.g. marked "várólista"? | no |
-| Q4 | **Skip-level delegation**: may an Alelnök assign tasks directly to Team members (depth $d = 2$)? May the Elnök assign to everyone? | Elnök: anyone; Alelnök: $d=2$; Teamvezető: $d=1$ |
-| Q5 | **Deputy grants**: who may grant them (only Alelnök and up?), and what's the maximum length (e.g. 30 days)? | Alelnök and up, 30 days max |
-| Q6 | **Placement**: how many courses per member ($q_i$)? Do first-year members get priority? | $q_i = 1$, first-year priority on |
-| Q7 | **Obligation progress**: cumulative across semesters, or per semester? (Today the code sums all semesters against this semester's rules.) | per semester |
-| Q8 | **Completion threshold** $\theta$ for courses (e.g. 75 % attendance)? | 0.75, editable as an obligation rule |
-| Q9 | **Email**: is the Gmail App Password confirmed working? A digest changes how much mail is sent | digest daily at 07:30, urgent items immediate |
-| Q10 | Which **Phase 3 features** do you want first (pick 3–5 from §5)? | calendar grid, digest, health page, QR check-in, leader dashboard |
-| Q11 | Was the October **update deploy** (`deploy/UPDATE-DEPLOY.md`) completed and verified? Phase 0 builds on it | — |
+| Lockout fix | Activation guard, rollover with mandate carry (+ optional Team memberships and KTSZT seats), next-Elnök appointment, semester editing, `fakt:bootstrap-president` recovery when the active semester has no Elnök | `SemesterRolloverTest` |
+| Speed | `RequestMemo` (active semester, roles, scope, KTSZT, delegation), `Event` visibility as one query, dashboard limit in SQL | `QueryBudgetTest` |
+| Courses → calendar | One event per session, DST-safe; approved + waitlisted see them (`[Várólista]` in the feed); date poll; placement proposal; 2-absence rule; Elnökség waivers; course managers record session attendance | `CourseCalendarTest` |
+| ICS v2 | `SEQUENCE`, `LAST-MODIFIED`, `STATUS:CANCELLED`, 60-min `VALARM`, line folding, `ETag`/304 | `CourseCalendarTest` |
+| Feature 1 | Calendar month grid with type / required / upcoming filters | `UpgradeFeaturesTest` |
+| Feature 2 | "Google Naptár" link and `.ics` download for every event | `UpgradeFeaturesTest` |
+| Feature 3 | Daily email digest at 07:30 + per-member setting (registration mail stays immediate) | `UpgradeFeaturesTest`, scheduler tests |
+| Feature 4 | QR self check-in with a 30-second rotating code | `UpgradeFeaturesTest` |
+| Feature 5 | Vezetői áttekintés: open/overdue tasks, attendance rate, missing RSVPs per member | `UpgradeFeaturesTest` |
+| Feature 6 | Rendszerállapot for the Elnök: PHP, caches, pending migrations, scheduler heartbeat, queue, failed jobs, log errors, test email | `UpgradeFeaturesTest` |
+| Feature 7 | CSV exports (Excel-friendly, formula-injection safe): attendance sheet, course roster with absences, member list | `UpgradeFeaturesTest` |
+| Feature 8 | Tagnévsor with search (accent-insensitive), Team, offices, expertise | `UpgradeFeaturesTest` |
+
+Not built yet, still on the list: task Kanban, course feedback, audit-log viewer, onboarding
+checklist, Diploma tracker, PWA, Google push sync, and the design sweep (§5, Phase 4).

@@ -20,9 +20,14 @@ class SchedulerConfigurationTest extends TestCase
             'fakt:recurring-tasks' => ['*/10 * * * *', 30],
             'fakt:due-reminders' => ['0 8 * * *', 120],
             'fakt:retention' => ['20 3 * * *', 240],
+            'fakt:daily-digest' => ['30 7 * * *', 60],
         ];
 
-        $this->assertCount(count($expected), $schedule->events());
+        // Plus the heartbeat shown on Admin → Rendszerállapot.
+        $this->assertCount(count($expected) + 1, $schedule->events());
+        $heartbeat = collect($schedule->events())->firstWhere('description', 'fakt:scheduler-heartbeat');
+        $this->assertInstanceOf(CallbackEvent::class, $heartbeat);
+        $this->assertSame('* * * * *', $heartbeat->expression);
 
         foreach ($expected as $name => [$cron, $expiryMinutes]) {
             $event = collect($schedule->events())->firstWhere('description', $name);

@@ -53,6 +53,7 @@ class HandleInertiaRequests extends Middleware
             'abilities' => fn () => [
                 'isPresident' => (($nullsafeVariable3 = $request->user()) ? $nullsafeVariable3->isPresident() : null) ?? false,
                 'isLeader' => (($nullsafeVariable4 = $request->user()) ? $nullsafeVariable4->isLeader() : null) ?? false,
+                'isElnokseg' => $request->user()?->isElnoksegMember() ?? false,
             ],
             'notifications' => function () use ($request) {
                 if (! $request->user()) {

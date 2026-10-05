@@ -7,6 +7,7 @@ use App\Models\ProgressRecord;
 use App\Models\Semester;
 use App\Support\AccessScope;
 use App\Support\Audit;
+use App\Support\CourseCompletion;
 use App\Support\LifecycleProgress;
 use App\Support\SecureUpload;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,7 @@ class LifecycleController extends Controller
 
         return Inertia::render('Lifecycle/Index', [
             'progress' => LifecycleProgress::for($request->user(), $semester),
+            'courses' => CourseCompletion::forUser($request->user(), $semester),
             'records' => ProgressRecord::query()->where('user_id', $request->user()->id)->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)->latest()->get(),
             'requests' => MemberRequest::query()->where('user_id', $request->user()->id)->where('semester_id', ($nullsafeVariable2 = $semester) ? $nullsafeVariable2->id : null)->latest()->get(),
             'memberStatus' => ($nullsafeVariable3 = $request->user()->profile) ? $nullsafeVariable3->member_status : null,
