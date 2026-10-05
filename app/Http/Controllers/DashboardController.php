@@ -17,7 +17,12 @@ class DashboardController extends Controller
     {
         $user = $request->user()->load('profile');
         $semester = Semester::active();
-        $events = PersonalCalendar::events($user, $semester)->where('ends_at', '>=', now())->take(5)->values();
+        $events = PersonalCalendar::query($user, $semester)
+            ->with(['organizer:id,name', 'orgUnit:id,name,color', 'attendances' => fn ($query) => $query->where('user_id', $user->id)])
+            ->where('ends_at', '>=', now())
+            ->orderBy('starts_at')
+            ->limit(5)
+            ->get();
         $tasks = Task::query()->visibleTo($user)->with('assignees:id,name')->whereNotIn('status', ['done', 'cancelled'])->orderBy('due_at')->take(6)->get();
         $announcements = Announcement::query()->with('author:id,name')->whereNotNull('published_at')->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))->orderByDesc('is_pinned')->orderByDesc('published_at')->take(4)->get();
 

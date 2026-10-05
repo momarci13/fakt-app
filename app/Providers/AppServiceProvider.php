@@ -2,7 +2,13 @@
 
 namespace App\Providers;
 
+use App\Models\OrgUnit;
+use App\Models\Project;
+use App\Models\RoleAssignment;
+use App\Models\Semester;
+use App\Models\TeamMembership;
 use App\Queue\SignalSafeWorker;
+use App\Support\RequestMemo;
 use Carbon\CarbonImmutable;
 use Illuminate\Queue\Worker;
 use Illuminate\Support\Facades\Date;
@@ -26,6 +32,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->flushMemoOnScopeChanges();
+    }
+
+    /**
+     * RequestMemo caches the active semester and each user's roles and scope
+     * for one request. Any write to the rows they derive from drops the cache.
+     */
+    protected function flushMemoOnScopeChanges(): void
+    {
+        foreach ([Semester::class, RoleAssignment::class, OrgUnit::class, TeamMembership::class, Project::class] as $model) {
+            $model::saved(fn () => RequestMemo::flush());
+            $model::deleted(fn () => RequestMemo::flush());
+        }
     }
 
     /**

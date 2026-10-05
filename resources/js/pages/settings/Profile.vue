@@ -11,6 +11,12 @@ import { Label } from '@/components/ui/label';
 import { edit } from '@/routes/profile';
 import { send } from '@/routes/verification';
 
+defineProps<{
+    mustVerifyEmail?: boolean;
+    status?: string;
+    notificationMode?: string;
+}>();
+
 defineOptions({
     layout: {
         breadcrumbs: [
@@ -96,6 +102,42 @@ const user = computed(() => page.props.auth.user);
                 <Button :disabled="processing" data-test="update-profile-button"
                     >Mentés</Button
                 >
+            </div>
+        </Form>
+
+        <Heading
+            variant="small"
+            title="Email-értesítések"
+            description="Az alkalmazáson belül minden értesítést azonnal látsz. Emailben kérheted egyenként vagy naponta egyszer összesítve."
+        />
+        <Form
+            action="/settings/ertesitesek"
+            method="patch"
+            class="grid gap-3"
+            v-slot="{ processing }"
+        >
+            <label class="flex items-center gap-2 text-sm"
+                ><input
+                    type="radio"
+                    name="notification_mode"
+                    value="digest"
+                    :checked="(notificationMode ?? 'digest') === 'digest'"
+                />Napi összesítő reggel 7:30-kor (ajánlott)</label
+            >
+            <label class="flex items-center gap-2 text-sm"
+                ><input
+                    type="radio"
+                    name="notification_mode"
+                    value="immediate"
+                    :checked="notificationMode === 'immediate'"
+                />Minden értesítés azonnal, külön emailben</label
+            >
+            <p class="text-xs text-muted-foreground">
+                A regisztrációval és a fiókoddal kapcsolatos levelek mindig
+                azonnal mennek.
+            </p>
+            <div>
+                <Button :disabled="processing" variant="outline">Mentés</Button>
             </div>
         </Form>
     </div>

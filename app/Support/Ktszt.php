@@ -45,10 +45,10 @@ final class Ktszt
     /** Org units that represent the Szakmaiság portfolio or team. */
     private static function professionalUnitIds(int $semesterId): Collection
     {
-        return OrgUnit::query()
+        return RequestMemo::remember("ktszt:units:{$semesterId}", fn () => OrgUnit::query()
             ->where('semester_id', $semesterId)
             ->where(fn ($q) => $q->where('slug', 'like', '%szakmaisag%')->orWhere('name', 'like', '%Szakmaiság%'))
-            ->pluck('id');
+            ->pluck('id'));
     }
 
     /** @return Collection<int, int> */
@@ -230,11 +230,11 @@ final class Ktszt
     /** @return Collection<int, RoleAssignment> */
     private static function activeAssignments(int $semesterId): Collection
     {
-        return RoleAssignment::query()
+        return RequestMemo::remember("ktszt:assignments:{$semesterId}", fn () => RoleAssignment::query()
             ->where('semester_id', $semesterId)
             ->whereNull('revoked_at')
             ->whereDate('starts_at', '<=', today())
             ->where(fn ($q) => $q->whereNull('ends_at')->orWhereDate('ends_at', '>=', today()))
-            ->get();
+            ->get());
     }
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, Link, usePage } from '@inertiajs/vue3';
 import {
     Bell,
     BookOpenCheck,
@@ -78,10 +78,19 @@ type KtsztPanel = {
     seatsRemaining: number;
     candidates: KtsztPerson[];
 };
+type SemesterRow = {
+    id: number;
+    name: string;
+    is_active: boolean;
+    starts_at: string;
+    ends_at: string;
+    president: { id: number; user?: { name: string } } | null;
+};
 defineProps<{
     ktszt: KtsztPanel | null;
     semester: { name: string; rules_published_at?: string } | null;
-    semesters: unknown[];
+    semesters: SemesterRow[];
+    approvedMembers: Array<{ id: number; name: string }>;
     rules: Rule[];
     audits: Audit[];
     pendingRequests: MemberRequest[];
@@ -89,6 +98,7 @@ defineProps<{
     importBatches: ImportBatch[];
     stats: { users: number; active: number; alumni: number; pending: number };
 }>();
+const pageErrors = usePage().props.errors as Record<string, string>;
 const exOfficioLabel = (role: string) =>
     ({
         vice_president: 'Szakmaiságért felelős Alelnök',
@@ -125,7 +135,195 @@ const date = (value: string) =>
             eyebrow="Elnöki rendszeradminisztráció"
             title="Működés és szabályozás"
             description="Regisztrációk, meghívók, féléves szabályok, kérelmek és a változásnapló egy védett felületen."
-        />
+        >
+            <template #actions
+                ><Button variant="outline" as-child
+                    ><Link href="/admin/rendszer">Rendszerállapot</Link></Button
+                ><Button variant="outline" as-child
+                    ><a href="/admin/export/tagok.csv"
+                        >Taglista (CSV)</a
+                    ></Button
+                ></template
+            >
+        </FaktPageHeader>
+
+        <section id="felevek" class="fakt-panel overflow-hidden">
+            <div class="border-b p-5">
+                <p class="fakt-label text-primary">Félévek és mandátumok</p>
+                <h2 class="mt-1 font-bold">Félévváltás</h2>
+                <p class="mt-1 text-sm text-muted-foreground">
+                    Ősz: július 1. – december 31., tavasz: január 1. – június
+                    30. Az Elnök és az Alelnökök mandátuma július 1-jétől június
+                    30-ig, a Teamvezetőké félévente tart. Aktiváláskor a még
+                    futó mandátumok átkerülnek; júliusban előbb jelöld ki a
+                    következő Elnököt, különben az aktiválás nem engedélyezett.
+                </p>
+            </div>
+            <p
+                v-if="pageErrors?.semester || pageErrors?.user_id"
+                class="mx-5 mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-200"
+            >
+                {{ pageErrors.semester ?? pageErrors.user_id }}
+            </p>
+            <div class="grid gap-5 p-5 xl:grid-cols-[1fr_22rem]">
+                <div class="divide-y rounded-xl border">
+                    <article
+                        v-for="item in semesters"
+                        :key="item.id"
+                        class="grid gap-3 p-4"
+                    >
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="min-w-0 flex-1 font-semibold">
+                                {{ item.name }}
+                                <span
+                                    class="text-xs font-normal text-muted-foreground"
+                                    >{{ day(item.starts_at) }} –
+                                    {{ day(item.ends_at) }}</span
+                                >
+                            </p>
+                            <StatusPill
+                                :value="item.is_active ? 'active' : 'pending'"
+                            />
+                        </div>
+                        <p class="text-sm">
+                            Elnök:
+                            <strong>{{
+                                item.president?.user?.name ?? 'nincs kijelölve'
+                            }}</strong>
+                        </p>
+                        <div v-if="!item.is_active" class="grid gap-2">
+                            <Form
+                                v-if="!item.president"
+                                :action="`/admin/felevek/${item.id}/elnok`"
+                                method="post"
+                                class="flex gap-2"
+                                ><select
+                                    name="user_id"
+                                    class="fakt-input"
+                                    aria-label="Következő Elnök"
+                                    required
+                                >
+                                    <option value="">
+                                        Következő Elnök kijelölése…
+                                    </option>
+                                    <option
+                                        v-for="member in approvedMembers"
+                                        :key="member.id"
+                                        :value="member.id"
+                                    >
+                                        {{ member.name }}
+                                    </option></select
+                                ><Button
+                                    type="submit"
+                                    size="sm"
+                                    variant="outline"
+                                    >Kijelölés</Button
+                                ></Form
+                            >
+                            <Form
+                                v-else
+                                :action="`/admin/felevek/${item.id}/elnok/${item.president.id}/visszavonas`"
+                                method="patch"
+                                ><Button type="submit" size="sm" variant="ghost"
+                                    >Elnöki kijelölés visszavonása</Button
+                                ></Form
+                            >
+                            <Form
+                                :action="`/admin/felevek/${item.id}/aktivalas`"
+                                method="post"
+                                class="flex flex-wrap items-center gap-3"
+                                ><label
+                                    class="flex items-center gap-1.5 text-xs"
+                                    ><input
+                                        type="checkbox"
+                                        name="carry_teams"
+                                        value="1"
+                                        class="size-4"
+                                        checked
+                                    />Team-tagságok átvitele</label
+                                ><label
+                                    class="flex items-center gap-1.5 text-xs"
+                                    ><input
+                                        type="checkbox"
+                                        name="carry_ktszt"
+                                        value="1"
+                                        class="size-4"
+                                        checked
+                                    />Választott KTSZT-tagok átvitele</label
+                                ><Button type="submit" size="sm"
+                                    >Aktiválás</Button
+                                ></Form
+                            >
+                        </div>
+                        <Form
+                            :action="`/admin/felevek/${item.id}`"
+                            method="patch"
+                            class="grid grid-cols-[1fr_auto_auto_auto] gap-2"
+                            ><input
+                                name="name"
+                                class="fakt-input"
+                                :value="item.name"
+                                aria-label="Név"
+                            /><input
+                                type="date"
+                                name="starts_at"
+                                class="fakt-input"
+                                :value="item.starts_at"
+                                aria-label="Kezdet"
+                            /><input
+                                type="date"
+                                name="ends_at"
+                                class="fakt-input"
+                                :value="item.ends_at"
+                                aria-label="Vég"
+                            /><Button type="submit" size="sm" variant="ghost"
+                                >Mentés</Button
+                            ></Form
+                        >
+                    </article>
+                </div>
+                <Form
+                    action="/admin/felevek"
+                    method="post"
+                    class="grid h-fit gap-3"
+                    v-slot="{ errors }"
+                    ><p class="font-semibold">Új félév</p>
+                    <input
+                        name="name"
+                        class="fakt-input"
+                        placeholder="pl. 2027 tavasz"
+                        required
+                    />
+                    <div class="grid grid-cols-2 gap-2">
+                        <input
+                            type="date"
+                            name="starts_at"
+                            class="fakt-input"
+                            aria-label="Kezdet"
+                            required
+                        /><input
+                            type="date"
+                            name="ends_at"
+                            class="fakt-input"
+                            aria-label="Vég"
+                            required
+                        />
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                        Létrehozás után a listában jelöld ki az Elnököt (ha
+                        kell), majd aktiváld.
+                    </p>
+                    <p
+                        v-for="(message, field) in errors"
+                        :key="field"
+                        class="text-xs text-destructive"
+                    >
+                        {{ message }}
+                    </p>
+                    <Button type="submit">Félév létrehozása</Button></Form
+                >
+            </div>
+        </section>
 
         <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div class="fakt-panel p-5">

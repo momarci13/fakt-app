@@ -6,7 +6,9 @@ use App\Models\MemberProfile;
 use App\Models\RoleAssignment;
 use App\Models\Semester;
 use App\Models\User;
+use App\Support\Mandate;
 use App\Support\OrgStructure;
+use App\Support\SemesterRollover;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -29,7 +31,10 @@ class BootstrapPresident extends Command
             return self::FAILURE;
         }
 
-        if (RoleAssignment::query()->where('role', 'president')->whereNull('revoked_at')->exists()) {
+        // Only the active semester counts: if a semester switch ever left it
+        // without an Elnök, this command is the no-SSH way back in.
+        $active = Semester::active();
+        if ($active && SemesterRollover::hasActivePresident($active)) {
             $this->error('Már létezik aktív elnöki kinevezés. A parancs nem módosított adatot.');
 
             return self::FAILURE;
@@ -85,6 +90,7 @@ class BootstrapPresident extends Command
                 'user_id' => $user->id,
                 'role' => 'president',
                 'starts_at' => now()->toDateString(),
+                'ends_at' => Mandate::endFor('president', today())?->toDateString(),
             ]);
         });
 

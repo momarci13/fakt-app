@@ -32,7 +32,7 @@ class RackhostSchedulerTest extends TestCase
         }
 
         $this->assertEqualsCanonicalizing(
-            ['queue:work', 'fakt:recurring-tasks', 'fakt:due-reminders', 'fakt:retention'],
+            ['queue:work', 'fakt:recurring-tasks', 'fakt:due-reminders', 'fakt:retention', 'fakt:daily-digest', 'fakt:scheduler-heartbeat'],
             collect($events)->pluck('description')->all(),
         );
     }

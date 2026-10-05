@@ -7,23 +7,37 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
+/**
+ * In-app notification, plus an email when it is urgent or the member chose
+ * "immediate" mail. Everyone else gets the day's notifications in one
+ * DailyDigest email (fakt:daily-digest), which keeps the Gmail sending volume
+ * at most one message per member per day.
+ */
 class FaktNotification extends Notification implements ShouldQueue
 {
-    public string $title;
-    public string $message;
-    public string $url = '/dashboard';
     use Queueable;
 
-    public function __construct(string $title, string $message, string $url = '/dashboard')
+    public string $title;
+
+    public string $message;
+
+    public string $url = '/dashboard';
+
+    public bool $urgent = false;
+
+    public function __construct(string $title, string $message, string $url = '/dashboard', bool $urgent = false)
     {
         $this->title = $title;
         $this->message = $message;
         $this->url = $url;
+        $this->urgent = $urgent;
     }
 
     public function via(object $notifiable): array
     {
-        return ['database', 'mail'];
+        $immediate = $this->urgent || ($notifiable->notification_mode ?? 'digest') === 'immediate';
+
+        return $immediate ? ['database', 'mail'] : ['database'];
     }
 
     public function toMail(object $notifiable): MailMessage

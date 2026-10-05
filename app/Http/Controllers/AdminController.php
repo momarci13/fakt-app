@@ -15,8 +15,10 @@ use App\Models\User;
 use App\Notifications\FaktNotification;
 use App\Support\Audit;
 use App\Support\Ktszt;
+use App\Support\Mandate;
 use App\Support\OrgStructure;
 use App\Support\SecureUpload;
+use App\Support\SemesterRollover;
 use App\Support\UntrustedInput;
 use App\Support\SessionSecurity;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +28,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -38,7 +41,12 @@ class AdminController extends Controller
 
         return Inertia::render('Admin/Index', [
             'semester' => $semester,
-            'semesters' => Semester::query()->latest('starts_at')->get(),
+            'semesters' => Semester::query()->latest('starts_at')->get()->map(fn (Semester $item) => array_merge($item->only(['id', 'name', 'is_active']), [
+                'starts_at' => $item->starts_at->toDateString(),
+                'ends_at' => $item->ends_at->toDateString(),
+                'president' => RoleAssignment::query()->where('semester_id', $item->id)->where('role', 'president')->whereNull('revoked_at')->with('user:id,name')->first(['id', 'user_id']),
+            ])),
+            'approvedMembers' => User::query()->where('approval_status', 'approved')->orderBy('name')->get(['id', 'name']),
             'rules' => ObligationRule::query()->where('semester_id', ($nullsafeVariable1 = $semester) ? $nullsafeVariable1->id : null)->orderBy('code')->orderByDesc('version')->get(),
             'audits' => AuditEntry::query()->with('actor:id,name')->latest('created_at')->take(25)->get(),
             'pendingRequests' => MemberRequest::query()->where('status', 'pending')->with('user:id,name,email')->latest()->get(),
@@ -319,16 +327,92 @@ class AdminController extends Controller
     public function storeSemester(Request $request): RedirectResponse
     {
         $this->authorizePresident($request);
-        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at'], 'activate' => ['boolean']]);
-        if ($data['activate'] ?? false) {
-            Semester::query()->update(['is_active' => false]);
-        }
-        $semester = Semester::query()->create(array_merge(collect($data)->except('activate')->all(), ['is_active' => $data['activate'] ?? false]));
+        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at'], 'activate' => ['boolean'], 'carry_ktszt' => ['boolean'], 'carry_teams' => ['boolean']]);
+        $semester = Semester::query()->create(array_merge(collect($data)->only(['name', 'starts_at', 'ends_at'])->all(), ['is_active' => false]));
         // Org units are per semester; a new semester starts with the statutory structure.
         OrgStructure::ensureFor($semester);
         Audit::record($semester, 'created');
 
+        if ($data['activate'] ?? false) {
+            return $this->runActivation($request, $semester, $data);
+        }
+
         return back()->with('success', 'A félév létrejött.');
+    }
+
+    public function updateSemester(Request $request, Semester $semester): RedirectResponse
+    {
+        $this->authorizePresident($request);
+        $data = $request->validate(['name' => ['required', 'string', 'max:100'], 'starts_at' => ['required', 'date'], 'ends_at' => ['required', 'date', 'after:starts_at']]);
+        $before = $semester->toArray();
+        $semester->update($data);
+        Audit::record($semester, 'updated', $before);
+
+        return back()->with('success', 'A félév adatai frissültek.');
+    }
+
+    /**
+     * Switch the active semester. SemesterRollover carries the running
+     * mandates and refuses a switch that would leave nobody as Elnök.
+     */
+    public function activateSemester(Request $request, Semester $semester): RedirectResponse
+    {
+        $this->authorizePresident($request);
+        abort_if($semester->is_active, 422, 'Ez a félév már aktív.');
+        $data = $request->validate(['carry_ktszt' => ['boolean'], 'carry_teams' => ['boolean']]);
+
+        return $this->runActivation($request, $semester, $data);
+    }
+
+    /** The outgoing Elnök names the next one before a July switch (mandate: 1 July – 30 June). */
+    public function appointNextPresident(Request $request, Semester $semester): RedirectResponse
+    {
+        $this->authorizePresident($request);
+        abort_if($semester->is_active, 422, 'Az aktív félév Elnöke itt nem cserélhető.');
+        $data = $request->validate(['user_id' => ['required', Rule::exists('users', 'id')->where('approval_status', 'approved')]]);
+
+        if (RoleAssignment::query()->where('semester_id', $semester->id)->where('role', 'president')->whereNull('revoked_at')->exists()) {
+            return back()->withErrors(['user_id' => 'Ennek a félévnek már van kijelölt Elnöke. Előbb vond vissza.']);
+        }
+
+        $assignment = RoleAssignment::query()->create([
+            'semester_id' => $semester->id,
+            'user_id' => $data['user_id'],
+            'appointed_by' => $request->user()->id,
+            'role' => 'president',
+            'starts_at' => $semester->starts_at->toDateString(),
+            'ends_at' => Mandate::endFor('president', $semester->starts_at)?->toDateString(),
+        ]);
+        Audit::record($assignment, 'next_president_appointed');
+
+        return back()->with('success', 'A következő félév Elnöke kijelölve.');
+    }
+
+    public function revokeNextPresident(Request $request, Semester $semester, RoleAssignment $roleAssignment): RedirectResponse
+    {
+        $this->authorizePresident($request);
+        abort_if($semester->is_active, 422);
+        abort_unless((int) $roleAssignment->semester_id === (int) $semester->id && $roleAssignment->role === 'president' && $roleAssignment->revoked_at === null, 404);
+        $before = $roleAssignment->toArray();
+        $roleAssignment->update(['revoked_at' => now()]);
+        Audit::record($roleAssignment, 'next_president_revoked', $before);
+
+        return back()->with('success', 'A kijelölés visszavonva.');
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function runActivation(Request $request, Semester $semester, array $data): RedirectResponse
+    {
+        try {
+            $summary = SemesterRollover::activate($semester, $request->user(), [
+                'ktszt' => (bool) ($data['carry_ktszt'] ?? false),
+                'teams' => (bool) ($data['carry_teams'] ?? false),
+            ]);
+        } catch (ValidationException $exception) {
+            return back()->withErrors($exception->errors());
+        }
+
+        return back()->with('success', "A(z) {$semester->name} félév aktív. Átvitt kinevezések: {$summary['roles']}, Team-tagságok: {$summary['memberships']}.");
     }
 
     public function storeRule(Request $request): RedirectResponse
@@ -435,7 +519,8 @@ class AdminController extends Controller
             $approved
                 ? 'Az Elnök jóváhagyta a hozzáférésedet. Az email címed ellenőrzése után beléphetsz.'
                 : $data['decision_note'],
-            '/login'
+            '/login',
+            true
         ));
         Audit::record($user, $approved ? 'registration_approved' : 'registration_rejected', $before);
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\RequestMemo;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
@@ -38,7 +39,7 @@ class Semester extends Model
 
     public static function active(): ?self
     {
-        return static::query()->where('is_active', true)->first();
+        return RequestMemo::remember('semester:active', fn () => static::query()->where('is_active', true)->first());
     }
 
     public static function activeOrFail(): self

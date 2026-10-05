@@ -17,6 +17,14 @@ class TaskDelegation
      */
     public function optionsFor(User $actor): Collection
     {
+        return RequestMemo::remember("delegation:{$actor->id}", fn () => $this->computeOptionsFor($actor));
+    }
+
+    /**
+     * @return Collection<int, array{id: int, name: string, delegation_label: string}>
+     */
+    private function computeOptionsFor(User $actor): Collection
+    {
         $semester = Semester::active();
         if (! $semester) {
             return collect();

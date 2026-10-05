@@ -17,6 +17,16 @@
 | Feladat delegálása | Alelnök/Projektvezető | saját Teamvezetők | saját Teamtagok | saját projekttagok | nem | saját magának | saját magának |
 | Életút-döntés és státusz | igen | nem | nem | nem | nem | saját kérelem | nem |
 | Alumni címtár/mentorálás | igen | igen | igen | igen | igen | igen | igen |
+| Félév létrehozása, aktiválása, következő Elnök kijelölése | igen | nem | nem | nem | nem | nem | nem |
+| Kurzusidőpont-szavazás | jelentkezőként | jelentkezőként | jelentkezőként | jelentkezőként | jelentkezőként | jelentkezőként | nem |
+| Kurzusidőpont kijelölése, automatikus beosztás | igen | Szakmaiság | nem | nem | **igen** | nem | nem |
+| Kurzusalkalom jelenlétének rögzítése | igen | Szakmaiság | nem | nem | **igen** | nem | nem |
+| Felmentés kérése | bárkinek | bárkinek | saját | saját | saját | saját | saját |
+| Felmentésről szavazás | **igen** | **igen** | nem | nem | nem | nem | nem |
+| Vezetői áttekintés | minden Team | saját portfólió | saját Team | saját projekt | nem | nem | nem |
+| QR-bejelentkezés indítása, jelenléti ív (CSV) | igen | saját terület | saját Team | saját projekt | kurzusalkalom | nem | nem |
+| Rendszerállapot, taglista (CSV) | igen | nem | nem | nem | nem | nem | nem |
+| Tagnévsor | igen | igen | igen | igen | igen | igen | igen |
 
 Minden szerep és tagság kezdő-/záródátummal él. Az Elnök rendszeradminisztrátori joga kizárólag aktív `president` szerepkijelölésből származik. A közvetlen rekordazonosítós végpontok újra ellenőrzik a hatókört; a kliensoldali elrejtés önmagában nem jogosultsági védelem.
 
@@ -49,3 +59,29 @@ Ezért a **Projekt önálló egység a hat Team mellett, nem azok között.** A 
 Minden projektbeli kinevezés dátumozott `role_assignment` sor `project_leader` vagy `project_member` szerepkörrel, a félévhez kötve. Így a Projekt tisztség helyesen beszámít abba a négy félévbe, amelyet a FAKT Diploma megkövetel, és az Elnökség félév végi `elfogadott` / `nem elfogadott` szavazásának van mihez kapcsolódnia.
 
 A Projektben való tagság senkit nem tesz Teamtaggá, és nem változtatja meg a Vezetőség összetételét.
+
+## Mandátumok és félévváltás
+
+| Tisztség | Mandátum |
+|---|---|
+| Elnök, Alelnök | július 1. – következő év június 30. |
+| Teamvezető | július 1. – december 31., illetve január 1. – június 30. |
+| Választott KTSZT-tag | a kinevezésben megadott ideig; félévváltáskor az Elnök dönt az átvitelről |
+
+A félévek ugyanezt a két félévet követik (ősz: július 1. – december 31., tavasz: január 1. –
+június 30.). Félév aktiválásakor az alkalmazás a még futó mandátumokat átviszi az új félévbe
+(ősz → tavasz: Elnök és Alelnökök; a Teamvezetőket újra ki kell nevezni). Tavasz → ősz váltáskor
+senki mandátuma nem fut tovább, ezért **előbb az Elnök kijelöli a következő félév Elnökét**, és
+csak utána aktiválható az új félév. Elnök nélküli félév aktiválását az alkalmazás megtagadja.
+
+## Kurzusteljesítés és felmentés
+
+Egy kurzuson legfeljebb a kurzusnál megadott számú alkalom hagyható ki (alapérték: 2). A hiányzó
+és az igazolt távollét is beleszámít. Efölött a kurzus nem teljesített, kivéve, ha az
+**Elnökség egyhangúlag felmentést ad**. A felmentésről az aktív Elnök és minden aktív Alelnök
+szavaz; az érintett a saját ügyében nem szavaz. Egyetlen „nem” szavazat elutasítja a kérelmet.
+Ugyanez a felmentés egy életút-kötelezettségre (szabályra) is kérhető.
+
+A kurzus alkalmai a jóváhagyott és a várólistás jelentkezők naptárában jelennek meg, amint az
+időpont rögzült. Több lehetséges időpont esetén a jelentkezők szavaznak, a végleges időpontot a
+KTSZT (vagy a Szakmaiság vezetése, illetve az Elnök) jelöli ki.

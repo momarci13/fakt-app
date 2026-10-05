@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form, Head } from '@inertiajs/vue3';
+import { Form, Head, Link } from '@inertiajs/vue3';
 import {
     AlertTriangle,
     CheckCircle2,
@@ -19,6 +19,7 @@ type Progress = {
     threshold: number;
     percent: number;
     complete: boolean;
+    waived?: boolean;
     kind: string;
 };
 type RequestItem = {
@@ -38,7 +39,18 @@ type RecordItem = {
     note?: string;
     created_at: string;
 };
+type CourseCompletion = {
+    course_id: number;
+    title: string;
+    sessions: number;
+    held: number;
+    absences: number;
+    allowed: number;
+    status: string;
+    waiver_status?: string | null;
+};
 defineProps<{
+    courses: CourseCompletion[];
     progress: Progress[];
     records: RecordItem[];
     requests: RequestItem[];
@@ -117,9 +129,59 @@ const date = (value: string) =>
                             : 'text-muted-foreground'
                     "
                 >
-                    {{ item.complete ? 'Teljesítve' : 'Folyamatban' }}
+                    {{
+                        item.waived
+                            ? 'Elnökségi felmentéssel teljesítve'
+                            : item.complete
+                              ? 'Teljesítve'
+                              : 'Folyamatban'
+                    }}
                 </p>
             </article>
+        </section>
+
+        <section v-if="courses.length" class="fakt-panel overflow-hidden">
+            <div class="border-b p-5">
+                <h2 class="font-bold">Kurzusteljesítés</h2>
+                <p class="text-sm text-muted-foreground">
+                    Kurzusonként legfeljebb a megengedett számú alkalmat
+                    hagyhatod ki (a hiányzás és az igazolt távollét is
+                    beleszámít). Efölött csak az Elnökség egyhangú döntése ad
+                    felmentést.
+                </p>
+            </div>
+            <div class="divide-y">
+                <div
+                    v-for="course in courses"
+                    :key="course.course_id"
+                    class="flex flex-wrap items-center gap-3 px-5 py-3"
+                >
+                    <div class="min-w-0 flex-1">
+                        <p class="font-semibold">{{ course.title }}</p>
+                        <p class="text-xs text-muted-foreground">
+                            {{ course.held }}/{{ course.sessions }} alkalom
+                            lezajlott · hiányzás: {{ course.absences }} /
+                            {{ course.allowed }}
+                        </p>
+                    </div>
+                    <StatusPill :value="course.status" />
+                    <StatusPill
+                        v-if="
+                            course.waiver_status && course.status !== 'waived'
+                        "
+                        :value="course.waiver_status"
+                    />
+                    <Link
+                        v-if="
+                            ['at_risk', 'failed'].includes(course.status) &&
+                            course.waiver_status !== 'pending'
+                        "
+                        href="/felmentesek"
+                        class="text-xs font-semibold text-primary"
+                        >Felmentés kérése</Link
+                    >
+                </div>
+            </div>
         </section>
 
         <section class="grid gap-6 xl:grid-cols-[.8fr_1.2fr]">
