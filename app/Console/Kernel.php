@@ -33,9 +33,11 @@ class Kernel extends ConsoleKernel
         $this->inProcess($schedule, 'fakt:daily-digest')->dailyAt('07:30')->withoutOverlapping(60, false);
 
         // Heartbeat for Admin → Rendszerállapot: proves the cron line runs.
+        // Like every task here it must not install pcntl signal handlers.
         $schedule->call(fn () => Cache::forever('fakt:scheduler:last_tick', now()->toIso8601String()))
             ->everyMinute()
-            ->name('fakt:scheduler-heartbeat');
+            ->name('fakt:scheduler-heartbeat')
+            ->withoutOverlapping(5, false);
     }
 
     /**

@@ -29,6 +29,12 @@ class SchedulerConfigurationTest extends TestCase
         $this->assertInstanceOf(CallbackEvent::class, $heartbeat);
         $this->assertSame('* * * * *', $heartbeat->expression);
 
+        // Rackhost disables pcntl_signal(): an event that would install
+        // signal handlers crashes schedule:run on the server.
+        foreach ($schedule->events() as $event) {
+            $this->assertFalse($event->releaseOnTerminationSignals, "{$event->description} would call pcntl_signal()");
+        }
+
         foreach ($expected as $name => [$cron, $expiryMinutes]) {
             $event = collect($schedule->events())->firstWhere('description', $name);
 
